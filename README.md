@@ -56,6 +56,36 @@ El esquema incluye:
 - **Seat**: Asientos por mesa
 - **Notification**: Historial de notificaciones
 
+### Dual Database Setup
+
+Esta aplicación soporta tanto PostgreSQL local como cloud (Neon):
+- **Local**: Para desarrollo y respaldo (`localhost:5432/wedding_db`)
+- **Cloud (Neon)**: Para producción y acceso remoto
+
+### 🔄 Migración Local → Cloud
+
+Si tienes datos en tu base de datos local y quieres migrarlos a la nube:
+
+**Opción 1 - Script Automático (Recomendado):**
+```bash
+# Linux/Mac/Git Bash
+chmod +x migrate-to-cloud.sh
+./migrate-to-cloud.sh
+
+# Windows CMD/PowerShell
+migrate-to-cloud.bat
+```
+
+**Opción 2 - Manual:**
+Consulta la guía completa en [`MIGRACION_BD.md`](./MIGRACION_BD.md)
+
+El script automático:
+- ✅ Crea backup de seguridad de la BD cloud
+- ✅ Exporta dump de la BD local
+- ✅ Restaura en la BD cloud con verificación
+- ✅ Valida integridad de datos
+- ✅ Genera logs detallados
+
 ## 📱 Configuración de WhatsApp (Twilio)
 
 1. Crea una cuenta en [Twilio](https://www.twilio.com/)

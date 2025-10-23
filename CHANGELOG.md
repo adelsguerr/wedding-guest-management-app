@@ -202,6 +202,29 @@
 - [x] `.github/copilot-instructions.md` - Contexto rápido para Copilot
 - [x] `BORRADO_LOGICO.md` - Documentación del soft delete
 - [x] `restart-prisma.bat` - Script para regenerar Prisma Client
+- [x] **`MIGRACION_BD.md`** - Manual completo de migración Local → Cloud
+- [x] **`migrate-to-cloud.sh`** - Script automático de migración (Bash)
+- [x] **`migrate-to-cloud.bat`** - Script automático de migración (Windows)
+
+### 🔄 Fase 11: Herramientas de Migración de Datos
+- [x] **Script de migración automatizado** (Bash + Windows)
+  - Verificación de conexiones (local y cloud)
+  - Backup automático de BD cloud antes de restaurar
+  - Export de BD local con pg_dump (formato custom)
+  - Restauración en BD cloud con pg_restore
+  - Validación de integridad (conteo de registros)
+  - Generación de logs detallados
+  - Mensajes con colores para mejor UX
+  - Confirmaciones de seguridad en pasos críticos
+- [x] **Manual de migración completo** (50+ páginas)
+  - Requisitos previos y preparación
+  - Método automático (script guiado)
+  - Método manual (paso a paso)
+  - Verificación post-migración exhaustiva
+  - Procedimientos de rollback
+  - Solución de problemas comunes
+  - Mejores prácticas de seguridad
+  - Checklist completo de migración
 
 ---
 
