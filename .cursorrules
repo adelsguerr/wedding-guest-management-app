@@ -1,0 +1,290 @@
+# AI Context - Wedding Guest Management
+
+## Proyecto
+Sistema de gestión de invitados de boda con WhatsApp, asignación de mesas y confirmaciones.
+
+## Tech Stack
+Next.js 14 | TypeScript | Prisma | PostgreSQL | Tailwind | Twilio
+
+## Reglas de Negocio CRÍTICAS
+⚠️ **NUNCA violar estas reglas:**
+
+1. **FamilyHead solo ADULTOS**: No permitir guestType CHILD como cabeza de familia
+2. **Cupos estrictos**: Validar que Guest[] por familia ≤ FamilyHead.allowedGuests
+3. **Un teléfono por familia**: Solo FamilyHead tiene phone (WhatsApp)
+4. **Asientos automáticos**: Table.capacity = cantidad de Seat[] a crear
+5. **WhatsApp solo a cabezas**: Notification → FamilyHead (no a Guest directamente)
+
+## Entidades y Relaciones
+
+### FamilyHead (Cabeza de Familia)
+```typescript
+{
+  id: string
+  firstName: string
+  lastName: string
+  phone: string // WhatsApp formato: +521234567890
+  email?: string
+  allowedGuests: number // Default: 2
+  confirmationStatus: 'PENDING' | 'CONFIRMED' | 'DECLINED' | 'NO_RESPONSE'
+  guests: Guest[]
+  notifications: Notification[]
+}
+```
+**Regla**: Solo adultos pueden ser FamilyHead
+
+### Guest (Invitado)
+```typescript
+{
+  id: string
+  firstName: string
+  lastName: string
+  guestType: 'ADULT' | 'CHILD'
+  dietaryRestrictions?: string
+  specialNeeds?: string
+  confirmed: boolean
+  familyHeadId: string
+  seatId?: string
+}
+```
+**Regla**: Total guests por familyHeadId ≤ allowedGuests
+
+### Table (Mesa)
+```typescript
+{
+  id: string
+  name: string // "Mesa 1", "Mesa VIP"
+  tableType: 'ROUND_8' | 'ROUND_10' | 'RECTANGULAR_6' | 'RECTANGULAR_8' | 'VIP' | 'KIDS'
+  capacity: number
+  location?: string
+  positionX?: number // Para visualización
+  positionY?: number
+  seats: Seat[]
+}
+```
+**Regla**: Al crear, auto-generar capacity Seats
+
+### Seat (Asiento)
+```typescript
+{
+  id: string
+  seatNumber: number
+  isOccupied: boolean
+  tableId: string
+  guestId?: string // Unique constraint
+}
+```
+
+### Notification (Notificación WhatsApp)
+```typescript
+{
+  id: string
+  notificationType: 'SAVE_THE_DATE' | 'RSVP_REQUEST' | 'REMINDER_1_MONTH' | ...
+  message: string
+  status: 'PENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED'
+  familyHeadId: string
+  sentAt?: Date
+  errorMessage?: string
+}
+```
+
+## APIs Implementadas
+
+### Familias
+```typescript
+GET    /api/families        // Listar todas (include: guests, _count)
+POST   /api/families        // Crear (body: FamilyHead sin id)
+GET    /api/families/[id]   // Ver una (include: guests, notifications)
+PATCH  /api/families/[id]   // Actualizar
+DELETE /api/families/[id]   // Eliminar (cascade guests)
+```
+
+### Invitados
+```typescript
+GET  /api/guests  // Listar (include: familyHead, seat.table)
+POST /api/guests  // Crear + VALIDAR cupos
+```
+**Validación POST**: 
+```typescript
+const family = await prisma.familyHead.findUnique({
+  where: { id: familyHeadId },
+  include: { _count: { select: { guests: true } } }
+})
+if (family._count.guests >= family.allowedGuests) {
+  return NextResponse.json({ error: 'Límite excedido' }, { status: 400 })
+}
+```
+
+### Mesas
+```typescript
+GET  /api/tables  // Listar (include: seats.guest.familyHead)
+POST /api/tables  // Crear + auto-generar asientos
+```
+**Creación de asientos**:
+```typescript
+seats: {
+  create: Array.from({ length: capacity }, (_, i) => ({
+    seatNumber: i + 1,
+    isOccupied: false
+  }))
+}
+```
+
+### Notificaciones
+```typescript
+POST /api/notifications  // Enviar WhatsApp
+GET  /api/notifications  // Historial
+```
+
+### Stats
+```typescript
+GET /api/stats  // Dashboard (totals, confirmationStats, tableStats, recent)
+```
+
+## Funciones WhatsApp (lib/whatsapp.ts)
+
+```typescript
+// Envío individual
+sendWhatsAppMessage({ to: string, message: string })
+
+// Envío masivo
+sendBulkWhatsAppMessages(recipients[], onProgress?)
+
+// Plantillas
+messageTemplates.saveTheDate(familyName, date, venue)
+messageTemplates.rsvpRequest(familyName, allowedGuests, url)
+messageTemplates.reminder1Month(familyName, date)
+messageTemplates.reminder1Week(familyName, date, venue, time)
+messageTemplates.reminder1Day(familyName, time, venue, tableNumber)
+messageTemplates.tableAssignment(familyName, tableNumber, tableType)
+messageTemplates.thankYou(familyName, photosUrl?)
+```
+
+## Componentes UI (shadcn/ui)
+
+```typescript
+// Disponibles en components/ui/
+import { Button } from "@/components/ui/button"
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+```
+
+## Patrones de Código
+
+### Componente Cliente
+```typescript
+"use client"
+import { useState, useEffect } from "react"
+// ...
+```
+
+### API Route (App Router)
+```typescript
+import { NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+
+export async function GET() {
+  try {
+    const data = await prisma.model.findMany()
+    return NextResponse.json(data)
+  } catch (error) {
+    return NextResponse.json({ error: 'Error message' }, { status: 500 })
+  }
+}
+```
+
+### Fetch desde Cliente
+```typescript
+const response = await fetch('/api/endpoint')
+const data = await response.json()
+```
+
+## Estilos y Tema
+
+### Colores Wedding
+```typescript
+// Gradientes principales
+className="bg-gradient-to-r from-pink-600 to-purple-600"
+className="bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50"
+
+// Por tipo
+- Familias: pink-600
+- Invitados: purple-600  
+- Mesas: blue-600
+- Stats: green-600
+
+// Estados
+- Confirmado: green-500
+- Pendiente: yellow-500
+- Declinado: red-500
+```
+
+### Iconos (lucide-react)
+```typescript
+import { Users, UserCheck, Baby, Table2, MapPin, MessageSquare } from "lucide-react"
+```
+
+## Variables de Entorno
+
+```env
+DATABASE_URL="postgresql://..."
+TWILIO_ACCOUNT_SID="ACxxxxx"
+TWILIO_AUTH_TOKEN="xxxxx"
+TWILIO_WHATSAPP_NUMBER="whatsapp:+14155238886"
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+```
+
+## Comandos Prisma
+
+```bash
+npx prisma db push      # Sync schema → DB
+npx prisma studio       # GUI visual
+npx prisma generate     # Regenerar cliente
+npx prisma migrate dev  # Crear migración
+```
+
+## Debugging
+
+### Ver queries Prisma
+```typescript
+const prisma = new PrismaClient({
+  log: ['query', 'info', 'warn', 'error'],
+})
+```
+
+### Ver respuesta API
+```typescript
+console.log('API Response:', await response.json())
+```
+
+## Pendientes de Implementar
+
+- [ ] Páginas /families, /guests, /tables
+- [ ] Drag & drop mesas (react-beautiful-dnd)
+- [ ] Canvas visualización salón (react-konva)
+- [ ] Portal público confirmación
+- [ ] Auth (NextAuth.js)
+- [ ] Export PDF/Excel
+
+## Archivos Clave
+
+- `prisma/schema.prisma` - Modelo completo
+- `lib/prisma.ts` - Cliente singleton
+- `lib/whatsapp.ts` - WhatsApp + plantillas
+- `app/api/**/route.ts` - Endpoints REST
+- `app/globals.css` - Variables CSS
+- `.clinerules` - Contexto completo
+
+## Cuando Agregues Nuevas Features
+
+1. ✅ Actualizar schema.prisma si es necesario
+2. ✅ Correr `npm run db:push`
+3. ✅ Crear/actualizar API routes
+4. ✅ Crear componentes de UI
+5. ✅ Agregar validaciones de negocio
+6. ✅ Manejar errores apropiadamente
+7. ✅ Actualizar este contexto si es relevante
+
+---
+**Referencia rápida - Siempre disponible**

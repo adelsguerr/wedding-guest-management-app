@@ -1,0 +1,142 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Cabeza de familia (solo adultos)
+model FamilyHead {
+  id              String    @id @default(cuid())
+  firstName       String
+  lastName        String
+  phone           String    @unique // Formato WhatsApp
+  email           String?   @unique
+  allowedGuests   Int       @default(2) // Número de invitados permitidos
+  confirmedGuests Int       @default(0) // Número de invitados confirmados
+  confirmationStatus ConfirmationStatus @default(PENDING)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  isDeleted       Boolean   @default(false) // Borrado lógico
+  deletedAt       DateTime? // Fecha de borrado
+  guests          Guest[]
+  notifications   Notification[]
+  
+  @@map("family_heads")
+}
+
+// Invitados (pueden ser niños o adultos)
+model Guest {
+  id                    String      @id @default(cuid())
+  firstName             String
+  lastName              String
+  guestType             GuestType   // ADULTO o NIÑO
+  dietaryRestrictions   String?
+  specialNeeds          String?
+  confirmed             Boolean     @default(false)
+  familyHeadId          String
+  familyHead            FamilyHead  @relation(fields: [familyHeadId], references: [id], onDelete: Cascade)
+  seatId                String?     @unique
+  seat                  Seat?       @relation(fields: [seatId], references: [id])
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  isDeleted             Boolean     @default(false) // Borrado lógico
+  deletedAt             DateTime?   // Fecha de borrado
+  
+  @@map("guests")
+}
+
+// Tipos de mesa
+model Table {
+  id          String      @id @default(cuid())
+  name        String      // "Mesa 1", "Mesa VIP", etc.
+  tableType   TableType
+  capacity    Int
+  location    String?     // Descripción de ubicación en el salón
+  positionX   Float?      // Coordenadas para visualización
+  positionY   Float?
+  seats       Seat[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  isDeleted   Boolean     @default(false) // Borrado lógico
+  deletedAt   DateTime?   // Fecha de borrado
+  
+  @@map("tables")
+}
+
+// Asientos
+model Seat {
+  id          String    @id @default(cuid())
+  seatNumber  Int
+  isOccupied  Boolean   @default(false)
+  tableId     String
+  table       Table     @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  guest       Guest?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  isDeleted   Boolean   @default(false) // Borrado lógico
+  deletedAt   DateTime? // Fecha de borrado
+  
+  @@unique([tableId, seatNumber])
+  @@map("seats")
+}
+
+// Historial de notificaciones
+model Notification {
+  id              String            @id @default(cuid())
+  notificationType NotificationType
+  message         String
+  status          NotificationStatus
+  sentAt          DateTime?
+  errorMessage    String?
+  familyHeadId    String
+  familyHead      FamilyHead        @relation(fields: [familyHeadId], references: [id], onDelete: Cascade)
+  createdAt       DateTime          @default(now())
+  isDeleted       Boolean           @default(false) // Borrado lógico
+  deletedAt       DateTime?         // Fecha de borrado
+  
+  @@map("notifications")
+}
+
+// Enums
+enum GuestType {
+  ADULT
+  CHILD
+}
+
+enum TableType {
+  ROUND_8       // Mesa redonda 8 personas
+  ROUND_10      // Mesa redonda 10 personas
+  RECTANGULAR_6 // Mesa rectangular 6 personas
+  RECTANGULAR_8 // Mesa rectangular 8 personas
+  VIP           // Mesa principal (novios, padrinos)
+  KIDS          // Mesa infantil
+}
+
+enum ConfirmationStatus {
+  PENDING       // Pendiente de confirmación
+  CONFIRMED     // Confirmado
+  DECLINED      // Declinó la invitación
+  NO_RESPONSE   // No respondió
+}
+
+enum NotificationType {
+  SAVE_THE_DATE     // Anuncio inicial
+  RSVP_REQUEST      // Solicitud de confirmación
+  REMINDER_1_MONTH  // Recordatorio 1 mes antes
+  REMINDER_1_WEEK   // Recordatorio 1 semana antes
+  REMINDER_1_DAY    // Recordatorio 1 día antes
+  TABLE_ASSIGNMENT  // Asignación de mesa
+  THANK_YOU         // Agradecimiento post-evento
+  CUSTOM            // Mensaje personalizado
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
