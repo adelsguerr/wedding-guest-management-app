@@ -45,7 +45,7 @@ interface Seat {
   id: string;
   seatNumber: number;
   isOccupied: boolean;
-  guest?: Guest;
+  guest?: Guest | null;
 }
 
 interface Table {
@@ -53,9 +53,9 @@ interface Table {
   name: string;
   tableType: string;
   capacity: number;
-  location?: string;
-  positionX?: number;
-  positionY?: number;
+  location?: string | null;
+  positionX?: number | null;
+  positionY?: number | null;
   seats: Seat[];
 }
 

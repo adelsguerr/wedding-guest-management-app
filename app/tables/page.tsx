@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -22,7 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ConfirmDialog } from "@/components/confirm-dialog";
 import { 
   Plus, 
   Users, 
@@ -36,15 +34,17 @@ import {
   XCircle,
   Edit,
   LayoutGrid,
-  List
+  List,
+  Loader2,
+  X
 } from "lucide-react";
-import dynamic from "next/dynamic";
-
-// Importar el canvas de forma dinámica para evitar problemas de SSR
-const TableCanvas = dynamic(() => import("@/components/table-canvas"), {
-  ssr: false,
-  loading: () => <p className="text-center p-8">Cargando visualización...</p>,
-});
+import { useTables, useCreateTable, useUpdateTable, useDeleteTable, type Table } from "@/lib/hooks/use-tables";
+import { useGuests } from "@/lib/hooks/use-guests";
+import TableCanvas from "@/components/table-canvas";
+import { useModalStore } from "@/lib/stores/modal-store";
+import { useFilterStore } from "@/lib/stores/filter-store";
+import { usePreferencesStore } from "@/lib/stores/preferences-store";
+import { useUIStore } from "@/lib/stores/ui-store";
 
 interface Seat {
   id: string;
@@ -55,7 +55,7 @@ interface Seat {
     firstName: string;
     lastName: string;
     guestType: string;
-  };
+  } | null;
 }
 
 interface Guest {
@@ -71,20 +71,6 @@ interface Guest {
   };
 }
 
-interface Table {
-  id: string;
-  name: string;
-  tableType: string;
-  capacity: number;
-  location?: string;
-  positionX?: number;
-  positionY?: number;
-  seats: Seat[];
-  _count: {
-    seats: number;
-  };
-}
-
 const TABLE_TYPES = [
   { value: "ROUND", label: "Mesa Redonda", icon: Circle },
   { value: "RECTANGULAR", label: "Mesa Rectangular", icon: Square },
@@ -93,37 +79,21 @@ const TABLE_TYPES = [
 ];
 
 export default function TablesPage() {
-  const [tables, setTables] = useState<Table[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [editingTable, setEditingTable] = useState<Table | null>(null);
-  const [filterType, setFilterType] = useState<string>("ALL");
-  const [viewMode, setViewMode] = useState<"list" | "canvas">("list");
-  const [deleteDialog, setDeleteDialog] = useState<{
-    open: boolean;
-    tableId: string | null;
-    tableName: string;
-  }>({
-    open: false,
-    tableId: null,
-    tableName: "",
-  });
+  // React Query Hooks
+  const { data: tables = [], isLoading, refetch } = useTables();
+  const { data: allGuests = [] } = useGuests();
+  const createTable = useCreateTable();
+  const updateTable = useUpdateTable();
+  const deleteTable = useDeleteTable();
 
-  // Estados para asignación de asientos
-  const [showSeatAssignment, setShowSeatAssignment] = useState(false);
-  const [selectedSeat, setSelectedSeat] = useState<Seat | null>(null);
-  const [selectedTable, setSelectedTable] = useState<Table | null>(null);
-  const [availableGuests, setAvailableGuests] = useState<Guest[]>([]);
+  // Zustand Stores
+  const { isTableModalOpen, tableModalMode, selectedTableId, openTableModal, closeTableModal, isSeatAssignmentModalOpen, selectedSeatData, openSeatAssignmentModal, closeSeatAssignmentModal } = useModalStore();
+  const { tableTypeFilter, setTableTypeFilter, clearTableFilters } = useFilterStore();
+  const { tablesViewMode, setTablesViewMode } = usePreferencesStore();
+  const { showToast, openConfirmDialog } = useUIStore();
+
+  // Form Data (local state para el formulario solamente)
   const [selectedGuestId, setSelectedGuestId] = useState<string>("");
-  
-  // Estado para confirmación de liberación de asiento
-  const [releaseDialog, setReleaseDialog] = useState<{
-    open: boolean;
-    guestName: string;
-  }>({
-    open: false,
-    guestName: "",
-  });
 
   const [formData, setFormData] = useState({
     name: "",
@@ -132,216 +102,147 @@ export default function TablesPage() {
     location: "",
   });
 
+  // Cargar datos cuando se abre en modo edición
   useEffect(() => {
-    fetchTables();
-  }, []);
-
-  // Recargar mesas cuando cambias a vista Canvas para tener posiciones actualizadas
-  useEffect(() => {
-    if (viewMode === "canvas" && tables.length > 0) {
-      // Solo recargar si ya hay mesas cargadas (evitar doble carga inicial)
-      fetchTables();
-    }
-  }, [viewMode]);
-
-  const fetchTables = async () => {
-    try {
-      const response = await fetch("/api/tables", {
-        cache: 'no-store', // Desactivar caché para obtener datos frescos
+    if (isTableModalOpen && tableModalMode === 'edit' && selectedTableId) {
+      const table = tables?.find((t) => t.id === selectedTableId);
+      if (table) {
+        setFormData({
+          name: table.name,
+          tableType: table.tableType,
+          capacity: table.capacity,
+          location: table.location || "",
+        });
+      }
+    } else if (!isTableModalOpen) {
+      // Reset cuando se cierra el modal
+      setFormData({
+        name: "",
+        tableType: "ROUND",
+        capacity: 8,
+        location: "",
       });
-      const data = await response.json();
-      // Asegurar que siempre sea un array
-      setTables(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Error fetching tables:", error);
-      toast.error("Error al cargar las mesas");
-      setTables([]); // Establecer array vacío en caso de error
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [isTableModalOpen, tableModalMode, selectedTableId, tables]);
+
+  // Available guests (sin asiento asignado)
+  const availableGuests = allGuests.filter(g => !g.seatId);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!formData.name.trim()) {
-      toast.error("El nombre de la mesa es obligatorio");
+      showToast('error', 'Error', 'El nombre de la mesa es obligatorio');
       return;
     }
 
     try {
-      const url = editingTable ? `/api/tables/${editingTable.id}` : "/api/tables";
-      const method = editingTable ? "PATCH" : "POST";
-
-      const response = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-
-      if (response.ok) {
-        setFormData({
-          name: "",
-          tableType: "ROUND",
-          capacity: 8,
-          location: "",
+      if (tableModalMode === 'edit' && selectedTableId) {
+        await updateTable.mutateAsync({
+          id: selectedTableId,
+          data: formData,
         });
-        setShowForm(false);
-        setEditingTable(null);
-        fetchTables();
-        toast.success(
-          editingTable ? "Mesa actualizada exitosamente" : "Mesa creada exitosamente",
-          {
-            description: `${formData.name} con ${formData.capacity} asientos`,
-          }
-        );
+        showToast('success', 'Mesa actualizada', `${formData.name} ha sido actualizada exitosamente`);
       } else {
-        const error = await response.json();
-        
-        // Mostrar mensaje especial si hay asientos ocupados fuera del rango
-        if (error.occupiedSeats && error.occupiedSeats.length > 0) {
-          const seatsList = error.occupiedSeats
-            .map((s: any) => `• ${s.guestName} en asiento #${s.seatNumber}`)
-            .join('\n');
-          
-          toast.error("No se puede reducir la capacidad", {
-            description: `Hay asientos ocupados fuera del nuevo rango:\n${seatsList}\n\nLibera estos asientos primero.`,
-            duration: 8000, // Más tiempo para leer el mensaje
-          });
-        } else {
-          toast.error(
-            editingTable ? "Error al actualizar la mesa" : "Error al crear la mesa",
-            {
-              description: error.details || error.error || "Intenta de nuevo",
-            }
-          );
-        }
+        await createTable.mutateAsync(formData);
+        showToast('success', 'Mesa creada', `${formData.name} ha sido creada exitosamente`);
       }
-    } catch (error) {
-      toast.error(editingTable ? "Error al actualizar la mesa" : "Error al crear la mesa");
+
+      closeTableModal();
+    } catch (error: any) {
+      showToast('error', 'Error', tableModalMode === 'edit' ? 'No se pudo actualizar la mesa' : 'No se pudo crear la mesa');
     }
   };
 
   const handleEdit = (table: Table) => {
-    setEditingTable(table);
-    setFormData({
-      name: table.name,
-      tableType: table.tableType,
-      capacity: table.capacity,
-      location: table.location || "",
-    });
-    setShowForm(true);
+    openTableModal('edit', table.id);
   };
 
-  const handleCloseForm = () => {
-    setShowForm(false);
-    setEditingTable(null);
-    setFormData({
-      name: "",
-      tableType: "ROUND",
-      capacity: 8,
-      location: "",
-    });
-  };
-
-  const handleDelete = async () => {
-    if (!deleteDialog.tableId) return;
-
-    try {
-      const response = await fetch(`/api/tables/${deleteDialog.tableId}`, {
-        method: "DELETE",
-      });
-
-      if (response.ok) {
-        fetchTables();
-        toast.success("Mesa eliminada exitosamente");
-      } else {
-        toast.error("Error al eliminar la mesa");
+  const handleDeleteClick = (table: Table) => {
+    openConfirmDialog(
+      '¿Eliminar mesa?',
+      `¿Estás seguro de eliminar la mesa "${table.name}"? Esta acción liberará todos los asientos asignados.`,
+      async () => {
+        try {
+          await deleteTable.mutateAsync(table.id);
+          showToast('success', 'Mesa eliminada', `${table.name} ha sido eliminada`);
+        } catch (error) {
+          showToast('error', 'Error al eliminar', 'No se pudo eliminar la mesa. Intenta nuevamente.');
+        }
       }
-    } catch (error) {
-      toast.error("Error al eliminar la mesa");
-    } finally {
-      setDeleteDialog({ open: false, tableId: null, tableName: "" });
-    }
+    );
   };
 
   // Funciones para asignación de asientos
   const handleSeatClick = async (seat: Seat, table: Table) => {
-    setSelectedSeat(seat);
-    setSelectedTable(table);
-    // Si el asiento tiene un invitado, usar su ID, sino dejar vacío
+    openSeatAssignmentModal(seat, table);
     setSelectedGuestId(seat.guest?.id || "");
-    
-    // Cargar invitados disponibles (sin asiento asignado o con este asiento)
-    try {
-      const response = await fetch("/api/guests");
-      const allGuests: Guest[] = await response.json();
-      const available = Array.isArray(allGuests) 
-        ? allGuests.filter((g) => !g.seatId || g.seatId === seat.id)
-        : [];
-      setAvailableGuests(available);
-      setShowSeatAssignment(true);
-    } catch (error) {
-      console.error("Error loading guests:", error);
-      toast.error("Error al cargar invitados");
-    }
   };
 
   const handleAssignSeat = async () => {
-    if (!selectedSeat || !selectedGuestId) return;
+    if (!selectedSeatData?.seat || !selectedGuestId) return;
 
     try {
-      const response = await fetch(`/api/seats/${selectedSeat.id}`, {
+      const response = await fetch(`/api/seats/${selectedSeatData.seat.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          guestId: selectedGuestId,
-        }),
+        body: JSON.stringify({ guestId: selectedGuestId }),
       });
 
       if (response.ok) {
-        fetchTables();
-        setShowSeatAssignment(false);
-        setSelectedSeat(null);
-        setSelectedTable(null);
+        await refetch();
+        closeSeatAssignmentModal();
         setSelectedGuestId("");
-        toast.success("Asiento asignado exitosamente");
+        showToast('success', 'Asiento asignado', 'El asiento ha sido asignado exitosamente');
       } else {
         const error = await response.json();
-        toast.error("Error al asignar asiento", {
-          description: error.error || "Intenta de nuevo",
-        });
+        showToast('error', 'Error al asignar', error.error || 'Intenta de nuevo');
       }
     } catch (error) {
       console.error("Error assigning seat:", error);
-      toast.error("Error al asignar asiento");
+      showToast('error', 'Error', 'Error al asignar asiento');
     }
   };
 
   const handleReleaseSeat = async () => {
-    if (!selectedSeat) return;
+    if (!selectedSeatData?.seat) return;
 
-    try {
-      const response = await fetch(`/api/seats/${selectedSeat.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ guestId: null }),
-      });
-      
-      if (response.ok) {
-        fetchTables();
-        // Actualizar el asiento seleccionado para remover el guest
-        setSelectedSeat({ ...selectedSeat, guest: undefined, isOccupied: false });
-        setSelectedGuestId(""); // Limpiar selección
-        toast.success("Asiento liberado - Puedes asignarlo a otra persona");
-      } else {
-        toast.error("Error al liberar asiento");
+    openConfirmDialog(
+      '¿Liberar asiento?',
+      `¿Estás seguro de liberar el asiento? El invitado quedará sin asiento asignado.`,
+      async () => {
+        try {
+          const response = await fetch(`/api/seats/${selectedSeatData.seat.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ guestId: null }),
+          });
+          
+          if (response.ok) {
+            // Refetch y obtener datos actualizados
+            const result = await refetch();
+            
+            // Actualizar selectedSeatData con el asiento liberado usando los datos frescos
+            if (result.data) {
+              const updatedTable = result.data.find((t: any) => t.id === selectedSeatData.table.id);
+              if (updatedTable) {
+                const updatedSeat = updatedTable.seats.find((s: any) => s.id === selectedSeatData.seat.id);
+                if (updatedSeat) {
+                  openSeatAssignmentModal(updatedSeat, updatedTable);
+                }
+              }
+            }
+            
+            setSelectedGuestId("");
+            showToast('success', 'Asiento liberado', 'El asiento ha sido liberado - Puedes asignarlo a otra persona');
+          } else {
+            showToast('error', 'Error', 'Error al liberar asiento');
+          }
+        } catch (error) {
+          showToast('error', 'Error', 'Error al liberar asiento');
+        }
       }
-    } catch (error) {
-      toast.error("Error al liberar asiento");
-    } finally {
-      setReleaseDialog({ open: false, guestName: "" });
-    }
+    );
   };
 
   const handleTableTypeChange = (type: string) => {
@@ -363,8 +264,8 @@ export default function TablesPage() {
   };
 
   const filteredTables = tables.filter(table => {
-    if (filterType === "ALL") return true;
-    return table.tableType === filterType;
+    if (tableTypeFilter === "ALL") return true;
+    return table.tableType === tableTypeFilter;
   });
 
   const occupiedSeats = Array.isArray(tables) 
@@ -376,10 +277,10 @@ export default function TablesPage() {
     ? tables.reduce((acc, table) => acc + table.capacity, 0)
     : 0;
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+        <Loader2 className="w-12 h-12 animate-spin text-pink-600" />
       </div>
     );
   }
@@ -413,23 +314,23 @@ export default function TablesPage() {
             </Link>
             <div className="flex border rounded-lg p-1">
               <Button
-                variant={viewMode === "list" ? "default" : "ghost"}
+                variant={tablesViewMode === "list" ? "default" : "ghost"}
                 size="sm"
-                onClick={() => setViewMode("list")}
+                onClick={() => setTablesViewMode("list")}
               >
                 <List className="w-4 h-4 mr-1" />
                 Lista
               </Button>
               <Button
-                variant={viewMode === "canvas" ? "default" : "ghost"}
+                variant={tablesViewMode === "canvas" ? "default" : "ghost"}
                 size="sm"
-                onClick={() => setViewMode("canvas")}
+                onClick={() => setTablesViewMode("canvas")}
               >
                 <LayoutGrid className="w-4 h-4 mr-1" />
                 Salón
               </Button>
             </div>
-            <Button onClick={() => setShowForm(!showForm)} size="lg">
+            <Button onClick={() => openTableModal('create')} size="lg">
               <Plus className="w-5 h-5 mr-2" />
               Nueva Mesa
             </Button>
@@ -485,8 +386,8 @@ export default function TablesPage() {
         {/* Filtros */}
         <div className="mb-6 flex gap-2 flex-wrap">
           <Button
-            variant={filterType === "ALL" ? "default" : "outline"}
-            onClick={() => setFilterType("ALL")}
+            variant={tableTypeFilter === "ALL" ? "default" : "outline"}
+            onClick={() => setTableTypeFilter("ALL")}
             size="sm"
           >
             Todas ({tables.length})
@@ -497,8 +398,8 @@ export default function TablesPage() {
             return (
               <Button
                 key={type.value}
-                variant={filterType === type.value ? "default" : "outline"}
-                onClick={() => setFilterType(type.value)}
+                variant={tableTypeFilter === type.value ? "default" : "outline"}
+                onClick={() => setTableTypeFilter(type.value as any)}
                 size="sm"
               >
                 <Icon className="w-4 h-4 mr-1" />
@@ -509,21 +410,21 @@ export default function TablesPage() {
         </div>
 
         {/* Vista de Mesas */}
-        {viewMode === "canvas" ? (
+        {tablesViewMode === "canvas" ? (
           <div className="bg-white rounded-lg shadow-lg p-6">
-            <TableCanvas tables={filteredTables} onTableUpdate={fetchTables} />
+            <TableCanvas tables={filteredTables as any} onTableUpdate={refetch} />
           </div>
         ) : filteredTables.length === 0 ? (
           <Card className="p-12 text-center">
             <Users className="w-16 h-16 mx-auto text-gray-400 mb-4" />
             <h3 className="text-xl font-semibold mb-2">No hay mesas registradas</h3>
             <p className="text-gray-600 mb-4">
-              {filterType === "ALL" 
+              {tableTypeFilter === "ALL" 
                 ? "Comienza agregando tu primera mesa" 
                 : `No hay mesas del tipo seleccionado`}
             </p>
-            {filterType === "ALL" && (
-              <Button onClick={() => setShowForm(true)}>
+            {tableTypeFilter === "ALL" && (
+              <Button onClick={() => openTableModal('create')}>
                 <Plus className="w-4 h-4 mr-2" />
                 Crear Primera Mesa
               </Button>
@@ -560,13 +461,7 @@ export default function TablesPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() =>
-                            setDeleteDialog({
-                              open: true,
-                              tableId: table.id,
-                              tableName: table.name,
-                            })
-                          }
+                          onClick={() => handleDeleteClick(table)}
                         >
                           <Trash2 className="w-4 h-4 text-red-600" />
                         </Button>
@@ -645,14 +540,14 @@ export default function TablesPage() {
         )}
 
         {/* Modal para Agregar/Editar Mesa */}
-        <Dialog open={showForm} onOpenChange={handleCloseForm}>
+        <Dialog open={isTableModalOpen} onOpenChange={closeTableModal}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-2xl bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
-                {editingTable ? "Editar Mesa" : "Agregar Nueva Mesa"}
+                {tableModalMode === 'edit' ? "Editar Mesa" : "Agregar Nueva Mesa"}
               </DialogTitle>
               <DialogDescription>
-                {editingTable 
+                {tableModalMode === 'edit' 
                   ? "Modifica los datos de la mesa. Los cambios en capacidad afectarán los asientos."
                   : "Los asientos se crearán automáticamente según la capacidad."}
               </DialogDescription>
@@ -719,19 +614,19 @@ export default function TablesPage() {
                   }
                   required
                 />
-                {editingTable ? (
+                {tableModalMode === 'edit' && selectedTableId && tables.find(t => t.id === selectedTableId) ? (
                   <>
                     <p className="text-xs text-gray-500 mt-1">
-                      Capacidad actual: {editingTable.capacity} asientos
+                      Capacidad actual: {tables.find(t => t.id === selectedTableId)!.capacity} asientos
                     </p>
-                    {formData.capacity < editingTable.capacity && (
+                    {formData.capacity < tables.find(t => t.id === selectedTableId)!.capacity && (
                       <p className="text-xs text-orange-600 mt-1 font-medium">
-                        ⚠️ Asegúrate de que no haya invitados asignados a los asientos #{formData.capacity + 1} - #{editingTable.capacity}
+                        ⚠️ Asegúrate de que no haya invitados asignados a los asientos #{formData.capacity + 1} - #{tables.find(t => t.id === selectedTableId)!.capacity}
                       </p>
                     )}
-                    {formData.capacity > editingTable.capacity && (
+                    {formData.capacity > tables.find(t => t.id === selectedTableId)!.capacity && (
                       <p className="text-xs text-green-600 mt-1 font-medium">
-                        ✅ Se agregarán {formData.capacity - editingTable.capacity} asientos nuevos
+                        ✅ Se agregarán {formData.capacity - tables.find(t => t.id === selectedTableId)!.capacity} asientos nuevos
                       </p>
                     )}
                   </>
@@ -758,12 +653,12 @@ export default function TablesPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={handleCloseForm}
+                  onClick={closeTableModal}
                 >
                   Cancelar
                 </Button>
                 <Button type="submit">
-                  {editingTable ? (
+                  {tableModalMode === 'edit' ? (
                     <>
                       <Edit className="w-4 h-4 mr-2" />
                       Actualizar Mesa
@@ -781,43 +676,37 @@ export default function TablesPage() {
         </Dialog>
 
         {/* Modal de Asignación de Asientos */}
-        <Dialog open={showSeatAssignment} onOpenChange={setShowSeatAssignment}>
+        <Dialog open={isSeatAssignmentModalOpen} onOpenChange={closeSeatAssignmentModal}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle className="text-2xl bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
                 Asignar Asiento
               </DialogTitle>
               <DialogDescription>
-                {selectedTable && selectedSeat && (
+                {selectedSeatData && (
                   <span>
-                    Mesa: <strong>{selectedTable.name}</strong> - Asiento{" "}
-                    <strong>#{selectedSeat.seatNumber}</strong>
+                    Mesa: <strong>{selectedSeatData.table.name}</strong> - Asiento{" "}
+                    <strong>#{selectedSeatData.seat.seatNumber}</strong>
                   </span>
                 )}
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-4">
-              {selectedSeat?.guest && (
+              {selectedSeatData?.seat.guest && (
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <p className="text-sm text-blue-800">
                         <strong>Ocupado actualmente por:</strong>
                         <br />
-                        {selectedSeat.guest.firstName} {selectedSeat.guest.lastName}
+                        {selectedSeatData.seat.guest.firstName} {selectedSeatData.seat.guest.lastName}
                       </p>
                     </div>
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={() => {
-                        if (!selectedSeat?.guest) return;
-                        setReleaseDialog({
-                          open: true,
-                          guestName: `${selectedSeat.guest.firstName} ${selectedSeat.guest.lastName}`,
-                        });
-                      }}
+                      onClick={handleReleaseSeat}
                     >
                       Liberar
                     </Button>
@@ -826,7 +715,7 @@ export default function TablesPage() {
               )}
 
               {/* Mostrar dropdown solo si el asiento está vacío */}
-              {!selectedSeat?.guest && (
+              {!selectedSeatData?.seat.guest && (
                 <div className="space-y-2">
                   <Label htmlFor="guest-select">Seleccionar Invitado</Label>
                   <Select
@@ -859,7 +748,7 @@ export default function TablesPage() {
             <DialogFooter>
               <Button
                 variant="outline"
-                onClick={() => setShowSeatAssignment(false)}
+                onClick={closeSeatAssignmentModal}
               >
                 Cancelar
               </Button>
@@ -868,7 +757,7 @@ export default function TablesPage() {
                   2. Es diferente al invitado actual (si existe) */}
               {selectedGuestId && 
                selectedGuestId !== "unassign" && 
-               selectedGuestId !== selectedSeat?.guest?.id && (
+               selectedGuestId !== selectedSeatData?.seat.guest?.id && (
                 <Button onClick={handleAssignSeat}>
                   Asignar Asiento
                 </Button>
@@ -876,32 +765,6 @@ export default function TablesPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-
-        {/* Dialog de Confirmación de Eliminación */}
-        <ConfirmDialog
-          open={deleteDialog.open}
-          onOpenChange={(open) =>
-            setDeleteDialog({ ...deleteDialog, open })
-          }
-          onConfirm={handleDelete}
-          title="¿Eliminar mesa?"
-          description={`¿Estás seguro de que deseas eliminar "${deleteDialog.tableName}"? Esta acción no se puede deshacer y se eliminarán todos los asientos.`}
-          confirmText="Eliminar"
-          variant="danger"
-        />
-
-        {/* Dialog de Confirmación de Liberación de Asiento */}
-        <ConfirmDialog
-          open={releaseDialog.open}
-          onOpenChange={(open) =>
-            setReleaseDialog({ ...releaseDialog, open })
-          }
-          onConfirm={handleReleaseSeat}
-          title="¿Liberar asiento?"
-          description={`¿Estás seguro de que deseas liberar el asiento de "${releaseDialog.guestName}"? El modal permanecerá abierto para que puedas asignarlo a otra persona si lo deseas.`}
-          confirmText="Liberar"
-          variant="danger"
-        />
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,10 +22,9 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { Users, Plus, Baby, User, Trash2, Search, Filter, Pencil, Loader2, X } from "lucide-react";
+import { Users, Plus, Baby, User, Trash2, Search, Filter, Pencil, Loader2 } from "lucide-react";
 import { useGuests, useCreateGuest, useUpdateGuest, useDeleteGuest, type Guest } from "@/lib/hooks/use-guests";
 import { useFamilies } from "@/lib/hooks/use-families";
-import { useModalStore, useFilterStore, useUIStore } from "@/lib/stores";
 
 export default function GuestsPage() {
   // React Query Hooks
@@ -35,26 +34,22 @@ export default function GuestsPage() {
   const updateGuest = useUpdateGuest();
   const deleteGuest = useDeleteGuest();
 
-  // Zustand Stores
-  const { 
-    isGuestModalOpen, 
-    guestModalMode,
-    selectedGuestId,
-    openGuestModal, 
-    closeGuestModal 
-  } = useModalStore();
-  
-  const {
-    guestTypeFilter,
-    guestSearchQuery,
-    setGuestTypeFilter,
-    setGuestSearchQuery,
-    clearGuestFilters
-  } = useFilterStore();
-  
-  const { showToast, openConfirmDialog } = useUIStore();
+  // UI State
+  const [showForm, setShowForm] = useState(false);
+  const [editingGuest, setEditingGuest] = useState<Guest | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterType, setFilterType] = useState<"ALL" | "ADULT" | "CHILD">("ALL");
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean;
+    guestId: string | null;
+    guestName: string;
+  }>({
+    open: false,
+    guestId: null,
+    guestName: "",
+  });
 
-  // Cargar datos cuando se abre en modo edición
+  // Form Data
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -76,49 +71,6 @@ export default function GuestsPage() {
     lastName: "",
     familyHeadId: "",
   });
-
-  // Cargar datos cuando se abre en modo edición
-  useEffect(() => {
-    if (isGuestModalOpen && guestModalMode === 'edit' && selectedGuestId) {
-      const guest = guests?.find((g) => g.id === selectedGuestId);
-      if (guest) {
-        setFormData({
-          firstName: guest.firstName,
-          lastName: guest.lastName,
-          guestType: guest.guestType,
-          familyHeadId: guest.familyHeadId,
-          dietaryRestrictions: guest.dietaryRestrictions || "",
-          specialNeeds: guest.specialNeeds || "",
-        });
-      }
-    } else if (!isGuestModalOpen) {
-      // Reset cuando se cierra el modal
-      setFormData({
-        firstName: "",
-        lastName: "",
-        guestType: "ADULT",
-        familyHeadId: "",
-        dietaryRestrictions: "",
-        specialNeeds: "",
-      });
-      setTouched({ firstName: false, lastName: false, familyHeadId: false });
-      setErrors({ firstName: "", lastName: "", familyHeadId: "" });
-    }
-  }, [isGuestModalOpen, guestModalMode, selectedGuestId, guests]);
-
-  // Helper function to reset form
-  const resetForm = () => {
-    setFormData({
-      firstName: "",
-      lastName: "",
-      guestType: "ADULT",
-      familyHeadId: "",
-      dietaryRestrictions: "",
-      specialNeeds: "",
-    });
-    setTouched({ firstName: false, lastName: false, familyHeadId: false });
-    setErrors({ firstName: "", lastName: "", familyHeadId: "" });
-  };
 
   // Validation Logic
   const validateField = (name: string, value: string) => {
@@ -172,63 +124,62 @@ export default function GuestsPage() {
 
     if (firstNameError || lastNameError || familyHeadIdError) return;
 
-    try {
-      if (guestModalMode === 'edit' && selectedGuestId) {
-        // Update
-        await updateGuest.mutateAsync({
-          id: selectedGuestId,
-          data: formData,
-        });
-        
-        showToast('success', 'Invitado actualizado', `${formData.firstName} ${formData.lastName} ha sido actualizado`);
-      } else {
-        // Create
-        await createGuest.mutateAsync(formData);
-        
-        showToast('success', 'Invitado creado', `${formData.firstName} ${formData.lastName} ha sido agregado exitosamente`);
-      }
-
-      closeGuestModal();
-    } catch (error) {
-      showToast(
-        'error',
-        'Error',
-        guestModalMode === 'edit' 
-          ? 'No se pudo actualizar el invitado' 
-          : 'No se pudo crear el invitado'
-      );
+    if (editingGuest) {
+      // Update
+      await updateGuest.mutateAsync({
+        id: editingGuest.id,
+        data: formData,
+      });
+      setEditingGuest(null);
+    } else {
+      // Create
+      await createGuest.mutateAsync(formData);
     }
+
+    // Reset form
+    setFormData({
+      firstName: "",
+      lastName: "",
+      guestType: "ADULT",
+      familyHeadId: "",
+      dietaryRestrictions: "",
+      specialNeeds: "",
+    });
+    setTouched({ firstName: false, lastName: false, familyHeadId: false });
+    setErrors({ firstName: "", lastName: "", familyHeadId: "" });
+    setShowForm(false);
   };
 
   const handleEdit = (guest: Guest) => {
-    openGuestModal('edit', guest.id);
+    setEditingGuest(guest);
+    setFormData({
+      firstName: guest.firstName,
+      lastName: guest.lastName,
+      guestType: guest.guestType,
+      familyHeadId: guest.familyHeadId,
+      dietaryRestrictions: guest.dietaryRestrictions || "",
+      specialNeeds: guest.specialNeeds || "",
+    });
+    setShowForm(true);
   };
 
-  const handleDeleteClick = (guest: Guest) => {
-    openConfirmDialog(
-      '¿Eliminar invitado?',
-      `¿Estás seguro de que deseas eliminar a ${guest.firstName} ${guest.lastName}? Esta acción no se puede deshacer.`,
-      async () => {
-        try {
-          await deleteGuest.mutateAsync(guest.id);
-          showToast('success', 'Invitado eliminado', `${guest.firstName} ${guest.lastName} ha sido eliminado`);
-        } catch (error) {
-          showToast('error', 'Error al eliminar', 'No se pudo eliminar el invitado. Intenta nuevamente.');
-        }
-      }
-    );
+  const handleDelete = async () => {
+    if (deleteDialog.guestId) {
+      await deleteGuest.mutateAsync(deleteDialog.guestId);
+      setDeleteDialog({ open: false, guestId: null, guestName: "" });
+    }
   };
 
-  // Filtering (ahora usa el store)
+  // Filtering
   const filteredGuests = guests.filter((guest) => {
     const matchesSearch =
-      guest.firstName.toLowerCase().includes(guestSearchQuery.toLowerCase()) ||
-      guest.lastName.toLowerCase().includes(guestSearchQuery.toLowerCase()) ||
+      guest.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      guest.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       `${guest.familyHead.firstName} ${guest.familyHead.lastName}`
         .toLowerCase()
-        .includes(guestSearchQuery.toLowerCase());
+        .includes(searchTerm.toLowerCase());
 
-    const matchesType = guestTypeFilter === "ALL" || guest.guestType === guestTypeFilter;
+    const matchesType = filterType === "ALL" || guest.guestType === filterType;
 
     return matchesSearch && matchesType;
   });
@@ -294,7 +245,18 @@ export default function GuestsPage() {
             <p className="text-gray-600 mt-2">Administra todos los invitados de la boda</p>
           </div>
           <Button
-            onClick={() => openGuestModal('create')}
+            onClick={() => {
+              setEditingGuest(null);
+              setFormData({
+                firstName: "",
+                lastName: "",
+                guestType: "ADULT",
+                familyHeadId: "",
+                dietaryRestrictions: "",
+                specialNeeds: "",
+              });
+              setShowForm(true);
+            }}
             size="lg"
           >
             <Plus className="w-5 h-5 mr-2" />
@@ -358,50 +320,33 @@ export default function GuestsPage() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <Input
                   placeholder="Buscar por nombre o familia..."
-                  value={guestSearchQuery}
-                  onChange={(e) => setGuestSearchQuery(e.target.value)}
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
                 />
-                {guestSearchQuery && (
-                  <button
-                    onClick={() => setGuestSearchQuery('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
               </div>
               <div className="flex gap-2">
                 <Button
-                  variant={guestTypeFilter === "ALL" ? "default" : "outline"}
-                  onClick={() => setGuestTypeFilter("ALL")}
+                  variant={filterType === "ALL" ? "default" : "outline"}
+                  onClick={() => setFilterType("ALL")}
                 >
                   <Filter className="w-4 h-4 mr-2" />
                   Todos ({guests.length})
                 </Button>
                 <Button
-                  variant={guestTypeFilter === "ADULT" ? "default" : "outline"}
-                  onClick={() => setGuestTypeFilter("ADULT")}
+                  variant={filterType === "ADULT" ? "default" : "outline"}
+                  onClick={() => setFilterType("ADULT")}
                 >
                   <User className="w-4 h-4 mr-2" />
                   Adultos ({stats.adults})
                 </Button>
                 <Button
-                  variant={guestTypeFilter === "CHILD" ? "default" : "outline"}
-                  onClick={() => setGuestTypeFilter("CHILD")}
+                  variant={filterType === "CHILD" ? "default" : "outline"}
+                  onClick={() => setFilterType("CHILD")}
                 >
                   <Baby className="w-4 h-4 mr-2" />
                   Niños ({stats.children})
                 </Button>
-                {(guestSearchQuery || guestTypeFilter !== 'ALL') && (
-                  <Button
-                    variant="ghost"
-                    onClick={clearGuestFilters}
-                    className="text-gray-500"
-                  >
-                    Limpiar filtros
-                  </Button>
-                )}
               </div>
             </div>
           </CardContent>
@@ -428,7 +373,13 @@ export default function GuestsPage() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => handleDeleteClick(guest)}
+                      onClick={() =>
+                        setDeleteDialog({
+                          open: true,
+                          guestId: guest.id,
+                          guestName: `${guest.firstName} ${guest.lastName}`,
+                        })
+                      }
                     >
                       <Trash2 className="w-4 h-4 text-red-600" />
                     </Button>
@@ -489,7 +440,12 @@ export default function GuestsPage() {
               <CardContent className="pt-6 text-center py-12">
                 <Users className="w-16 h-16 mx-auto text-gray-300 mb-4" />
                 <p className="text-gray-600 mb-4">No se encontraron invitados</p>
-                <Button onClick={clearGuestFilters}>
+                <Button
+                  onClick={() => {
+                    setSearchTerm("");
+                    setFilterType("ALL");
+                  }}
+                >
                   Limpiar filtros
                 </Button>
               </CardContent>
@@ -498,14 +454,14 @@ export default function GuestsPage() {
         </div>
 
         {/* Create/Edit Form Modal */}
-        <Dialog open={isGuestModalOpen} onOpenChange={(open) => !open && closeGuestModal()}>
+        <Dialog open={showForm} onOpenChange={setShowForm}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-2xl bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
-                {guestModalMode === 'edit' ? "Editar Invitado" : "Agregar Nuevo Invitado"}
+                {editingGuest ? "Editar Invitado" : "Agregar Nuevo Invitado"}
               </DialogTitle>
               <DialogDescription>
-                {guestModalMode === 'edit'
+                {editingGuest
                   ? "Modifica los datos del invitado"
                   : "Completa los datos del nuevo invitado. Será asignado a una familia existente."}
               </DialogDescription>
@@ -612,10 +568,10 @@ export default function GuestsPage() {
                         <SelectItem
                           key={family.id}
                           value={family.id}
-                          disabled={!hasSpace && guestModalMode !== 'edit'}
+                          disabled={!hasSpace && !editingGuest}
                         >
                           {family.firstName} {family.lastName} ({family._count.guests}/{family.allowedGuests})
-                          {!hasSpace && guestModalMode !== 'edit' && " - Completo"}
+                          {!hasSpace && !editingGuest && " - Completo"}
                         </SelectItem>
                       );
                     })}
@@ -679,7 +635,7 @@ export default function GuestsPage() {
               </div>
 
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => closeGuestModal()}>
+                <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
                   Cancelar
                 </Button>
                 <Button
@@ -695,7 +651,7 @@ export default function GuestsPage() {
                   ) : (
                     <>
                       <Plus className="w-4 h-4 mr-2" />
-                      {guestModalMode === 'edit' ? "Actualizar" : "Guardar"} Invitado
+                      {editingGuest ? "Actualizar" : "Guardar"} Invitado
                     </>
                   )}
                 </Button>
@@ -703,6 +659,18 @@ export default function GuestsPage() {
             </form>
           </DialogContent>
         </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <ConfirmDialog
+          open={deleteDialog.open}
+          onOpenChange={(open) => setDeleteDialog({ ...deleteDialog, open })}
+          onConfirm={handleDelete}
+          title="¿Eliminar invitado?"
+          description={`¿Estás seguro de eliminar a "${deleteDialog.guestName}"? Esta acción no se puede deshacer.`}
+          confirmText="Sí, eliminar"
+          cancelText="Cancelar"
+          variant="danger"
+        />
       </div>
     </div>
   );

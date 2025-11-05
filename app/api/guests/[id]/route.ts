@@ -4,11 +4,12 @@ import { prisma } from '@/lib/prisma';
 // GET - Obtener un invitado específico
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const guest = await prisma.guest.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         familyHead: true,
         seat: {
@@ -39,14 +40,15 @@ export async function GET(
 // PATCH - Actualizar un invitado
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const body = await request.json();
     
     // Actualizar el invitado
     const guest = await prisma.guest.update({
-      where: { id: params.id },
+      where: { id },
       data: body,
       include: {
         familyHead: true,
@@ -99,12 +101,13 @@ export async function PATCH(
 // DELETE - Eliminar un invitado (borrado lógico)
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     // Borrado lógico: marcar como eliminado en lugar de borrar físicamente
     await prisma.guest.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         isDeleted: true,
         deletedAt: new Date(),

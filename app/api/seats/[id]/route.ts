@@ -4,10 +4,10 @@ import { prisma } from "@/lib/prisma";
 // PATCH /api/seats/[id] - Asignar/desasignar invitado a un asiento
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
     const { guestId } = body;
 
@@ -109,10 +109,10 @@ export async function PATCH(
 // GET /api/seats/[id] - Obtener información de un asiento
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     const seat = await prisma.seat.findUnique({
       where: { id },

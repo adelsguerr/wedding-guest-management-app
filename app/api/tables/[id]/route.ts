@@ -4,11 +4,12 @@ import { prisma } from '@/lib/prisma';
 // GET - Obtener una mesa específica
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const table = await prisma.table.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         seats: {
           where: {
@@ -51,8 +52,9 @@ export async function GET(
 // PATCH - Actualizar una mesa
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const body = await request.json();
     
@@ -63,7 +65,7 @@ export async function PATCH(
       // Obtener asientos ocupados de esta mesa
       const occupiedSeats = await prisma.seat.findMany({
         where: {
-          tableId: params.id,
+          tableId: id,
           isDeleted: false,
           guest: {
             isNot: null, // Asientos que tienen un invitado asignado
@@ -105,7 +107,7 @@ export async function PATCH(
 
       // Si la nueva capacidad es diferente, ajustar los asientos
       const currentTable = await prisma.table.findUnique({
-        where: { id: params.id },
+        where: { id },
         include: {
           seats: {
             where: { isDeleted: false },
@@ -121,7 +123,7 @@ export async function PATCH(
           const seatsToCreate = [];
           for (let i = currentCapacity + 1; i <= newCapacity; i++) {
             seatsToCreate.push({
-              tableId: params.id,
+              tableId: id,
               seatNumber: i,
               isOccupied: false,
             });
@@ -134,7 +136,7 @@ export async function PATCH(
         else if (newCapacity < currentCapacity) {
           await prisma.seat.updateMany({
             where: {
-              tableId: params.id,
+              tableId: id,
               seatNumber: {
                 gt: newCapacity,
               },
@@ -149,7 +151,7 @@ export async function PATCH(
     }
     
     const table = await prisma.table.update({
-      where: { id: params.id },
+      where: { id },
       data: body,
     });
 
@@ -166,12 +168,13 @@ export async function PATCH(
 // DELETE - Eliminar una mesa (borrado lógico)
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     // Borrado lógico: marcar como eliminado en lugar de borrar físicamente
     await prisma.table.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         isDeleted: true,
         deletedAt: new Date(),

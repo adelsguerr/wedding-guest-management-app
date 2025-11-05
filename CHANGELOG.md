@@ -3,13 +3,41 @@
 ## 🎯 Proyecto: Sistema de Gestión de Invitados de Boda
 
 **Fecha de inicio:** 23 de octubre de 2025  
-**Stack:** Next.js 15, TypeScript, Prisma, PostgreSQL, Tailwind CSS, shadcn/ui
+**Última actualización:** 5 de noviembre de 2025  
+**Stack:** Next.js 15, TypeScript, Prisma, PostgreSQL, Tailwind CSS, shadcn/ui, Zustand, Sonner
 
 ---
 
 ## ✅ COMPLETADO
 
-### � Fase 5: Gestión de Mesas (CRÍTICO) ⭐ NUEVO
+### 🎨 Fase 6: Refactorización a Zustand y UX (NUEVO) ⭐
+- [x] **Migración completa a Zustand** - 4 stores centralizados
+  - `modal-store.ts` - Estado de todos los modales (guest, family, table, seat assignment)
+  - `filter-store.ts` - Filtros y búsquedas de todas las páginas
+  - `preferences-store.ts` - Preferencias de usuario (vista canvas/lista)
+  - `ui-store.ts` - UI global (loading, toasts, confirm dialogs, breadcrumbs)
+- [x] **Refactorización de páginas**:
+  - `/guests` - Completamente migrado a Zustand
+  - `/families` - Completamente migrado a Zustand  
+  - `/tables` - Completamente migrado a Zustand
+- [x] **GlobalConfirmDialog** - Componente de confirmación reutilizable
+  - Diseño con gradiente pink-purple
+  - Icono circular de 20x20
+  - Botones centrados, rojo para eliminar
+  - Integrado globalmente en layout
+- [x] **Sistema de notificaciones unificado**:
+  - Migración de toast personalizado → Sonner exclusivamente
+  - Eliminados toasts duplicados de React Query hooks
+  - `showToast()` helper en Zustand UI store
+  - Componente `ToastContainer` eliminado
+  - Un solo toast por acción
+- [x] **Correcciones de bugs**:
+  - Fix infinite loop en guests page (useEffect dependency)
+  - Fix delete functionality en todas las páginas
+  - Fix seat assignment modal - actualización tras liberar asiento
+  - Eliminación de mensajes duplicados
+
+### 🪑 Fase 5: Gestión de Mesas (CRÍTICO) ⭐
 - [x] **Página `/tables`** - Gestión completa de mesas
 - [x] **CRUD de mesas** - Crear, listar, editar, eliminar con validación
 - [x] **6 tipos de mesa** - Round 8/10, Rectangular 6/8, VIP, Kids
@@ -34,7 +62,7 @@
   - Colores: gris (vacía), amarillo (parcial), verde (completa)
 - [x] **Filtros por tipo de mesa** - 7 filtros (ALL + 6 tipos)
 
-### �🏗️ Fase 1: Configuración Inicial del Proyecto
+### 🏗️ Fase 1: Configuración Inicial del Proyecto
 - [x] Creación del proyecto Next.js 14 (App Router) con TypeScript
 - [x] Configuración de Tailwind CSS con tema personalizado (pink-purple gradients)
 - [x] Instalación de shadcn/ui components

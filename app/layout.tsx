@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "sonner";
+import { Providers } from "./providers";
+import { GlobalLoadingOverlay } from "@/components/global-loading-overlay";
+import { GlobalConfirmDialog } from "@/components/global-confirm-dialog";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -18,18 +21,22 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className={inter.className}>
-        {children}
-        <Toaster 
-          position="top-center" 
-          richColors 
-          closeButton
-          toastOptions={{
-            style: {
-              background: 'white',
-              border: '1px solid #e5e7eb',
-            },
-          }}
-        />
+        <Providers>
+          {children}
+          <Toaster 
+            position="top-center" 
+            richColors 
+            closeButton
+            toastOptions={{
+              style: {
+                background: 'white',
+                border: '1px solid #e5e7eb',
+              },
+            }}
+          />
+          <GlobalLoadingOverlay />
+          <GlobalConfirmDialog />
+        </Providers>
       </body>
     </html>
   );

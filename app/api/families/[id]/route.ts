@@ -4,12 +4,13 @@ import { prisma } from '@/lib/prisma';
 // GET - Obtener una familia específica
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const family = await prisma.familyHead.findUnique({
       where: { 
-        id: params.id,
+        id,
       },
       include: {
         guests: {
@@ -54,8 +55,9 @@ export async function GET(
 // PATCH - Actualizar una familia
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const body = await request.json();
     
@@ -65,7 +67,7 @@ export async function PATCH(
     }
     
     const family = await prisma.familyHead.update({
-      where: { id: params.id },
+      where: { id },
       data: body,
     });
 
@@ -102,12 +104,13 @@ export async function PATCH(
 // DELETE - Eliminar una familia (borrado lógico)
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     // Borrado lógico: marcar como eliminado en lugar de borrar físicamente
     await prisma.familyHead.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         isDeleted: true,
         deletedAt: new Date(),

@@ -2,31 +2,52 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Users, Plus, Phone, Mail, UserCheck, Trash2, Pencil, Loader2, X } from "lucide-react";
-import { useFamilies, useCreateFamily, useUpdateFamily, useDeleteFamily, type FamilyHead } from "@/lib/hooks/use-families";
-import { useModalStore } from "@/lib/stores/modal-store";
-import { useFilterStore } from "@/lib/stores/filter-store";
-import { useUIStore } from "@/lib/stores/ui-store";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { Users, Plus, Phone, Mail, UserCheck, Trash2, Pencil } from "lucide-react";
+
+interface FamilyHead {
+  id: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email?: string;
+  allowedGuests: number;
+  confirmedGuests: number;
+  confirmationStatus: string;
+  _count: {
+    guests: number;
+  };
+}
 
 export default function FamiliesPage() {
-  // React Query Hooks
-  const { data: families = [], isLoading } = useFamilies();
-  const createFamily = useCreateFamily();
-  const updateFamily = useUpdateFamily();
-  const deleteFamily = useDeleteFamily();
-
-  // Zustand Stores
-  const { isFamilyModalOpen, familyModalMode, selectedFamilyId, openFamilyModal, closeFamilyModal } = useModalStore();
-  const { familySearchQuery, setFamilySearchQuery, clearFamilyFilters } = useFilterStore();
-  const { showToast, openConfirmDialog } = useUIStore();
-
-  // Form Data (local state para el formulario solamente)
+  const [families, setFamilies] = useState<FamilyHead[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingFamily, setEditingFamily] = useState<FamilyHead | null>(null);
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean;
+    familyId: string | null;
+    familyName: string;
+  }>({
+    open: false,
+    familyId: null,
+    familyName: "",
+  });
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -34,15 +55,7 @@ export default function FamiliesPage() {
     email: "",
     allowedGuests: 1,
   });
-
-  const [editFormData, setEditFormData] = useState<{
-    firstName: string;
-    lastName: string;
-    phone: string;
-    email: string;
-    allowedGuests: number;
-    confirmationStatus: "PENDING" | "CONFIRMED" | "DECLINED" | "NO_RESPONSE";
-  }>({
+  const [editFormData, setEditFormData] = useState({
     firstName: "",
     lastName: "",
     phone: "",
@@ -50,57 +63,21 @@ export default function FamiliesPage() {
     allowedGuests: 1,
     confirmationStatus: "PENDING",
   });
-
-  // Cargar datos cuando se abre en modo edición
-  useEffect(() => {
-    if (isFamilyModalOpen && familyModalMode === 'edit' && selectedFamilyId) {
-      const family = families?.find((f) => f.id === selectedFamilyId);
-      if (family) {
-        setEditFormData({
-          firstName: family.firstName,
-          lastName: family.lastName,
-          phone: family.phone,
-          email: family.email || "",
-          allowedGuests: family.allowedGuests,
-          confirmationStatus: family.confirmationStatus,
-        });
-      }
-    } else if (!isFamilyModalOpen) {
-      // Reset cuando se cierra el modal
-      setFormData({
-        firstName: "",
-        lastName: "",
-        phone: "",
-        email: "",
-        allowedGuests: 1,
-      });
-      setEditFormData({
-        firstName: "",
-        lastName: "",
-        phone: "",
-        email: "",
-        allowedGuests: 1,
-        confirmationStatus: "PENDING",
-      });
-      setTouched({ firstName: false, lastName: false, phone: false });
-      setErrors({ firstName: "", lastName: "", phone: "" });
-    }
-  }, [isFamilyModalOpen, familyModalMode, selectedFamilyId, families]);
-
-  // Validation State
   const [touched, setTouched] = useState({
     firstName: false,
     lastName: false,
     phone: false,
   });
-
   const [errors, setErrors] = useState({
     firstName: "",
     lastName: "",
     phone: "",
   });
 
-  // Validation Logic
+  useEffect(() => {
+    fetchFamilies();
+  }, []);
+
   const validateField = (name: string, value: string) => {
     switch (name) {
       case "firstName":
@@ -125,6 +102,7 @@ export default function FamiliesPage() {
   const handleFieldChange = (name: string, value: string | number) => {
     setFormData({ ...formData, [name]: value });
     
+    // Validar solo si el campo ya fue tocado
     if (touched[name as keyof typeof touched]) {
       const error = validateField(name, String(value));
       setErrors({ ...errors, [name]: error });
@@ -137,74 +115,167 @@ export default function FamiliesPage() {
     setErrors({ ...errors, [name]: error });
   };
 
-  // Handlers
+  const fetchFamilies = async () => {
+    try {
+      const response = await fetch("/api/families");
+      const data = await response.json();
+      // Asegurar que siempre sea un array
+      setFamilies(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Error fetching families:", error);
+      setFamilies([]); // Establecer array vacío en caso de error
+      toast.error("Error al cargar las familias");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    setTouched({ firstName: true, lastName: true, phone: true });
+    // Marcar todos los campos como tocados
+    setTouched({
+      firstName: true,
+      lastName: true,
+      phone: true,
+    });
 
+    // Validar todos los campos
     const firstNameError = validateField("firstName", formData.firstName);
     const lastNameError = validateField("lastName", formData.lastName);
     const phoneError = validateField("phone", formData.phone);
 
-    setErrors({ firstName: firstNameError, lastName: lastNameError, phone: phoneError });
+    setErrors({
+      firstName: firstNameError,
+      lastName: lastNameError,
+      phone: phoneError,
+    });
 
-    if (firstNameError || lastNameError || phoneError) return;
+    // Si hay errores, no enviar
+    if (firstNameError || lastNameError || phoneError) {
+      toast.error("Formulario incompleto", {
+        description: "Por favor completa todos los campos obligatorios correctamente",
+      });
+      return;
+    }
 
     try {
-      await createFamily.mutateAsync(formData);
-      
-      showToast('success', 'Familia creada', `${formData.firstName} ${formData.lastName} ha sido agregado exitosamente`);
+      const response = await fetch("/api/families", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
 
-      closeFamilyModal();
+      if (response.ok) {
+        setFormData({
+          firstName: "",
+          lastName: "",
+          phone: "",
+          email: "",
+          allowedGuests: 1,
+        });
+        setTouched({
+          firstName: false,
+          lastName: false,
+          phone: false,
+        });
+        setErrors({
+          firstName: "",
+          lastName: "",
+          phone: "",
+        });
+        setShowForm(false);
+        fetchFamilies();
+        toast.success("Familia agregada exitosamente", {
+          description: "La familia y el representante han sido registrados",
+        });
+      } else {
+        const error = await response.json();
+        toast.error("Error al crear la familia", {
+          description: error.error || "No se pudo crear la familia",
+        });
+      }
     } catch (error) {
-      showToast('error', 'Error', 'No se pudo crear la familia');
+      console.error("Error creating family:", error);
+      toast.error("Error inesperado", {
+        description: "No se pudo conectar con el servidor",
+      });
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      const response = await fetch(`/api/families/${id}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        fetchFamilies();
+        toast.success("Familia eliminada", {
+          description: "La familia ha sido eliminada correctamente",
+        });
+      } else {
+        toast.error("Error al eliminar", {
+          description: "No se pudo eliminar la familia",
+        });
+      }
+    } catch (error) {
+      console.error("Error deleting family:", error);
+      toast.error("Error inesperado", {
+        description: "No se pudo conectar con el servidor",
+      });
     }
   };
 
   const handleOpenEdit = (family: FamilyHead) => {
-    openFamilyModal('edit', family.id);
+    setEditingFamily(family);
+    setEditFormData({
+      firstName: family.firstName,
+      lastName: family.lastName,
+      phone: family.phone,
+      email: family.email || "",
+      allowedGuests: family.allowedGuests,
+      confirmationStatus: family.confirmationStatus,
+    });
+    setShowEditModal(true);
   };
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedFamilyId) return;
+
+    if (!editingFamily) return;
+
+    if (!editFormData.firstName.trim() || !editFormData.lastName.trim() || !editFormData.phone.trim()) {
+      toast.error("Por favor completa todos los campos obligatorios");
+      return;
+    }
 
     try {
-      await updateFamily.mutateAsync({
-        id: selectedFamilyId,
-        data: editFormData,
+      const response = await fetch(`/api/families/${editingFamily.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editFormData),
       });
 
-      showToast('success', 'Familia actualizada', `${editFormData.firstName} ${editFormData.lastName} ha sido actualizado`);
-
-      closeFamilyModal();
+      if (response.ok) {
+        toast.success("Familia actualizada correctamente");
+        setShowEditModal(false);
+        setEditingFamily(null);
+        fetchFamilies();
+      } else {
+        const error = await response.json();
+        toast.error(error.error || "Error al actualizar la familia");
+      }
     } catch (error) {
-      showToast('error', 'Error', 'No se pudo actualizar la familia');
+      console.error("Error updating family:", error);
+      toast.error("Error al actualizar la familia");
     }
   };
 
-  const handleDeleteClick = (family: FamilyHead) => {
-    openConfirmDialog(
-      '¿Eliminar familia?',
-      `¿Estás seguro de eliminar la familia "${family.firstName} ${family.lastName}"? Esta acción no se puede deshacer y eliminará todos los invitados asociados.`,
-      async () => {
-        try {
-          await deleteFamily.mutateAsync(family.id);
-          showToast('success', 'Familia eliminada', `${family.firstName} ${family.lastName} ha sido eliminado`);
-          showToast('success', 'Familia eliminada', `${family.firstName} ${family.lastName} ha sido eliminado`);
-        } catch (error) {
-          showToast('error', 'Error al eliminar', 'No se pudo eliminar la familia. Intenta nuevamente.');
-        }
-      }
-    );
-  };
-
-  // Loading State
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-pink-600" />
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-600"></div>
       </div>
     );
   }
@@ -247,14 +318,14 @@ export default function FamiliesPage() {
               Administra los representantes de familia y sus invitados
             </p>
           </div>
-          <Button onClick={() => openFamilyModal('create')} size="lg">
+          <Button onClick={() => setShowForm(!showForm)} size="lg">
             <Plus className="w-5 h-5 mr-2" />
             Nueva Familia
           </Button>
         </div>
 
-        {/* Create Form Modal */}
-        <Dialog open={isFamilyModalOpen && familyModalMode === 'create'} onOpenChange={closeFamilyModal}>
+        {/* Form Modal */}
+        <Dialog open={showForm} onOpenChange={setShowForm}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-2xl bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
@@ -302,7 +373,6 @@ export default function FamiliesPage() {
                     </p>
                   )}
                 </div>
-                
                 <div>
                   <Label htmlFor="lastName" className={errors.lastName && touched.lastName ? "text-red-600" : ""}>
                     Apellido *
@@ -338,7 +408,6 @@ export default function FamiliesPage() {
                     </p>
                   )}
                 </div>
-                
                 <div>
                   <Label htmlFor="phone" className={errors.phone && touched.phone ? "text-red-600" : ""}>
                     Teléfono (WhatsApp) *
@@ -379,7 +448,6 @@ export default function FamiliesPage() {
                     </p>
                   )}
                 </div>
-                
                 <div>
                   <Label htmlFor="email">Email (opcional)</Label>
                   <Input
@@ -387,10 +455,11 @@ export default function FamiliesPage() {
                     type="email"
                     placeholder="ejemplo@correo.com"
                     value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, email: e.target.value })
+                    }
                   />
                 </div>
-                
                 <div className="md:col-span-2">
                   <Label htmlFor="allowedGuests">Número de Invitados Permitidos *</Label>
                   <Input
@@ -400,7 +469,12 @@ export default function FamiliesPage() {
                     max="20"
                     required
                     value={formData.allowedGuests}
-                    onChange={(e) => setFormData({ ...formData, allowedGuests: parseInt(e.target.value) })}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        allowedGuests: parseInt(e.target.value),
+                      })
+                    }
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     ⚠️ El representante de familia cuenta como 1 invitado. Ej: Si permites 3, puedes agregar 2 más.
@@ -409,25 +483,16 @@ export default function FamiliesPage() {
               </div>
               
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={closeFamilyModal}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowForm(false)}
+                >
                   Cancelar
                 </Button>
-                <Button 
-                  type="submit" 
-                  className="bg-gradient-to-r from-pink-600 to-purple-600"
-                  disabled={createFamily.isPending}
-                >
-                  {createFamily.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Guardando...
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Guardar Familia
-                    </>
-                  )}
+                <Button type="submit" className="bg-gradient-to-r from-pink-600 to-purple-600">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Guardar Familia
                 </Button>
               </DialogFooter>
             </form>
@@ -453,7 +518,11 @@ export default function FamiliesPage() {
                 <div>
                   <p className="text-sm text-gray-600">Confirmadas</p>
                   <p className="text-3xl font-bold">
-                    {families.filter((f) => f.confirmationStatus === "CONFIRMED").length}
+                    {
+                      Array.isArray(families)
+                        ? families.filter((f) => f.confirmationStatus === "CONFIRMED").length
+                        : 0
+                    }
                   </p>
                 </div>
                 <UserCheck className="w-12 h-12 text-green-600 opacity-20" />
@@ -466,7 +535,7 @@ export default function FamiliesPage() {
                 <div>
                   <p className="text-sm text-gray-600">Total Invitados</p>
                   <p className="text-3xl font-bold">
-                    {families.reduce((acc, f) => acc + f._count.guests, 0)}
+                    {Array.isArray(families) ? families.reduce((acc, f) => acc + f._count.guests, 0) : 0}
                   </p>
                 </div>
                 <Users className="w-12 h-12 text-purple-600 opacity-20" />
@@ -477,7 +546,7 @@ export default function FamiliesPage() {
 
         {/* List */}
         <div className="grid gap-4">
-          {families.map((family) => (
+          {Array.isArray(families) && families.map((family) => (
             <Card key={family.id} className="hover:shadow-lg transition-shadow">
               <CardContent className="pt-6">
                 <div className="flex items-start justify-between">
@@ -537,7 +606,13 @@ export default function FamiliesPage() {
                     <Button
                       size="sm"
                       variant="destructive"
-                      onClick={() => handleDeleteClick(family)}
+                      onClick={() =>
+                        setDeleteDialog({
+                          open: true,
+                          familyId: family.id,
+                          familyName: `${family.firstName} ${family.lastName}`,
+                        })
+                      }
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -554,7 +629,7 @@ export default function FamiliesPage() {
                 <p className="text-gray-600 mb-4">
                   No hay familias registradas aún
                 </p>
-                <Button onClick={() => openFamilyModal('create')}>
+                <Button onClick={() => setShowForm(true)}>
                   <Plus className="w-4 h-4 mr-2" />
                   Agregar Primera Familia
                 </Button>
@@ -563,8 +638,26 @@ export default function FamiliesPage() {
           )}
         </div>
 
-        {/* Edit Modal */}
-        <Dialog open={isFamilyModalOpen && familyModalMode === 'edit'} onOpenChange={closeFamilyModal}>
+        {/* Confirm Delete Dialog */}
+        <ConfirmDialog
+          open={deleteDialog.open}
+          onOpenChange={(open) =>
+            setDeleteDialog({ ...deleteDialog, open })
+          }
+          onConfirm={() => {
+            if (deleteDialog.familyId) {
+              handleDelete(deleteDialog.familyId);
+            }
+          }}
+          title="¿Eliminar familia?"
+          description={`¿Estás seguro de eliminar la familia "${deleteDialog.familyName}"? Esta acción no se puede deshacer y eliminará todos los invitados asociados.`}
+          confirmText="Sí, eliminar"
+          cancelText="Cancelar"
+          variant="danger"
+        />
+
+        {/* Modal de Edición */}
+        <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>Editar Familia</DialogTitle>
@@ -625,9 +718,9 @@ export default function FamiliesPage() {
                   onChange={(e) => setEditFormData({ ...editFormData, allowedGuests: parseInt(e.target.value) })}
                   required
                 />
-                {selectedFamilyId && families.find(f => f.id === selectedFamilyId) && (
+                {editingFamily && (
                   <p className="text-sm text-gray-500 mt-1">
-                    Actualmente hay {families.find(f => f.id === selectedFamilyId)!._count.guests} invitados registrados
+                    Actualmente hay {editingFamily._count.guests} invitados registrados
                   </p>
                 )}
               </div>
@@ -636,7 +729,7 @@ export default function FamiliesPage() {
                 <Label htmlFor="edit-confirmationStatus">Estado de Confirmación</Label>
                 <Select
                   value={editFormData.confirmationStatus}
-                  onValueChange={(value) => setEditFormData({ ...editFormData, confirmationStatus: value as "PENDING" | "CONFIRMED" | "DECLINED" | "NO_RESPONSE" })}
+                  onValueChange={(value) => setEditFormData({ ...editFormData, confirmationStatus: value })}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -654,23 +747,15 @@ export default function FamiliesPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={closeFamilyModal}
+                  onClick={() => setShowEditModal(false)}
                 >
                   Cancelar
                 </Button>
                 <Button
                   type="submit"
                   className="bg-gradient-to-r from-pink-500 to-purple-600"
-                  disabled={updateFamily.isPending}
                 >
-                  {updateFamily.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Guardando...
-                    </>
-                  ) : (
-                    "Guardar Cambios"
-                  )}
+                  Guardar Cambios
                 </Button>
               </div>
             </form>
