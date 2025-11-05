@@ -4,7 +4,7 @@ Aplicación completa para gestionar invitados de boda con notificaciones por Wha
 
 ## 🚀 Características
 
-- ✅ Gestión de cabezas de familia y sus invitados
+- ✅ Gestión de representantes de familia y sus invitados
 - 👶 Distinción entre adultos y niños
 - 📱 Notificaciones vía WhatsApp (Twilio)
 - 🪑 Mapeo interactivo de mesas y asientos
@@ -50,7 +50,7 @@ Aplicación completa para gestionar invitados de boda con notificaciones por Wha
 ## 🗄️ Base de Datos
 
 El esquema incluye:
-- **FamilyHead**: Cabezas de familia (adultos)
+- **FamilyHead**: Representantes de familia (adultos)
 - **Guest**: Invitados (adultos y niños)
 - **Table**: Mesas del evento
 - **Seat**: Asientos por mesa
@@ -97,9 +97,9 @@ El script automático:
 ## 📋 Uso
 
 ### Gestión de Familias
-- Agrega cabezas de familia con sus datos de contacto
+- Agrega representantes de familia con sus datos de contacto
 - Asigna cupos de invitados por familia
-- Los cabezas de familia solo pueden ser adultos
+- Los representantes de familia solo pueden ser adultos
 
 ### Gestión de Invitados
 - Registra invitados asociados a cada familia

@@ -44,10 +44,47 @@ export async function PATCH(
   try {
     const body = await request.json();
     
+    // Actualizar el invitado
     const guest = await prisma.guest.update({
       where: { id: params.id },
       data: body,
+      include: {
+        familyHead: true,
+      },
     });
+
+    // Si se actualizó el campo "confirmed", verificar el estado de la familia
+    if ('confirmed' in body && guest.familyHeadId) {
+      // Obtener todos los invitados de la familia
+      const allGuests = await prisma.guest.findMany({
+        where: {
+          familyHeadId: guest.familyHeadId,
+          isDeleted: false,
+        },
+      });
+
+      if (allGuests.length > 0) {
+        const allConfirmed = allGuests.every(g => g.confirmed);
+        const someConfirmed = allGuests.some(g => g.confirmed);
+
+        // Actualizar el estado de la familia según corresponda
+        let newStatus: 'CONFIRMED' | 'PENDING' | undefined;
+        
+        if (allConfirmed) {
+          newStatus = 'CONFIRMED';
+        } else if (!someConfirmed) {
+          newStatus = 'PENDING';
+        }
+
+        // Solo actualizar si cambió el estado
+        if (newStatus && guest.familyHead.confirmationStatus !== newStatus) {
+          await prisma.familyHead.update({
+            where: { id: guest.familyHeadId },
+            data: { confirmationStatus: newStatus },
+          });
+        }
+      }
+    }
 
     return NextResponse.json(guest);
   } catch (error) {

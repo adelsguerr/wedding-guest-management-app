@@ -35,7 +35,7 @@ wedding-guest-management-app/
 
 ## 🗄️ Modelo de Datos
 
-### FamilyHead (Cabeza de Familia)
+### FamilyHead (Representante de Familia)
 - ✅ Solo adultos
 - 📱 Teléfono (WhatsApp)
 - 👥 Número de invitados permitidos
@@ -65,12 +65,12 @@ wedding-guest-management-app/
 - 📱 Tipo (Save the Date, RSVP, Recordatorios, etc.)
 - ✉️ Mensaje y estado
 - 📅 Fecha de envío
-- 🔗 Asociada a cabeza de familia
+- 🔗 Asociada a representante de familia
 
 ## 🎯 Funcionalidades Principales
 
 ### 1. Gestión de Familias (/families)
-- ➕ Crear cabezas de familia (solo adultos)
+- ➕ Crear representantes de familia (solo adultos)
 - 📝 Editar información
 - 👁️ Ver detalles con invitados
 - 🗑️ Eliminar familias

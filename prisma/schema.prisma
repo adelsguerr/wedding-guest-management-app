@@ -7,7 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Cabeza de familia (solo adultos)
+// Representante de familia (solo adultos)
 model FamilyHead {
   id              String    @id @default(cuid())
   firstName       String
@@ -57,6 +57,7 @@ model Table {
   location    String?     // Descripción de ubicación en el salón
   positionX   Float?      // Coordenadas para visualización
   positionY   Float?
+  displayOrder Int?       // Orden de visualización en el grid (drag & drop)
   seats       Seat[]
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
@@ -107,12 +108,10 @@ enum GuestType {
 }
 
 enum TableType {
-  ROUND_8       // Mesa redonda 8 personas
-  ROUND_10      // Mesa redonda 10 personas
-  RECTANGULAR_6 // Mesa rectangular 6 personas
-  RECTANGULAR_8 // Mesa rectangular 8 personas
-  VIP           // Mesa principal (novios, padrinos)
-  KIDS          // Mesa infantil
+  ROUND        // Mesa redonda
+  RECTANGULAR  // Mesa rectangular
+  VIP          // Mesa VIP / Principal
+  KIDS         // Mesa infantil
 }
 
 enum ConfirmationStatus {

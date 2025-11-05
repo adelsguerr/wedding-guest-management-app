@@ -15,7 +15,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Users, Plus, Baby, User, Trash2, Search, Filter } from "lucide-react";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { Users, Plus, Baby, User, Trash2, Search, Filter, Pencil } from "lucide-react";
 
 interface Guest {
   id: string;
@@ -55,8 +56,18 @@ export default function GuestsPage() {
   const [families, setFamilies] = useState<FamilyHead[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingGuest, setEditingGuest] = useState<Guest | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<"ALL" | "ADULT" | "CHILD">("ALL");
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean;
+    guestId: string | null;
+    guestName: string;
+  }>({
+    open: false,
+    guestId: null,
+    guestName: "",
+  });
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -118,9 +129,12 @@ export default function GuestsPage() {
     try {
       const response = await fetch("/api/guests");
       const data = await response.json();
-      setGuests(data);
+      // Asegurar que siempre sea un array
+      setGuests(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Error fetching guests:", error);
+      setGuests([]); // Establecer array vacío en caso de error
+      toast.error("Error al cargar los invitados");
     } finally {
       setLoading(false);
     }
@@ -130,9 +144,11 @@ export default function GuestsPage() {
     try {
       const response = await fetch("/api/families");
       const data = await response.json();
-      setFamilies(data);
+      // Asegurar que siempre sea un array
+      setFamilies(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Error fetching families:", error);
+      setFamilies([]); // Establecer array vacío en caso de error
     }
   };
 
@@ -166,8 +182,11 @@ export default function GuestsPage() {
     }
 
     try {
-      const response = await fetch("/api/guests", {
-        method: "POST",
+      const url = editingGuest ? `/api/guests/${editingGuest.id}` : "/api/guests";
+      const method = editingGuest ? "PATCH" : "POST";
+
+      const response = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
@@ -192,26 +211,100 @@ export default function GuestsPage() {
           familyHeadId: "",
         });
         setShowForm(false);
+        setEditingGuest(null);
         fetchGuests();
         fetchFamilies(); // Actualizar el contador de invitados
-        toast.success("Invitado agregado exitosamente", {
-          description: "El invitado ha sido registrado correctamente",
-        });
+        toast.success(
+          editingGuest ? "Invitado actualizado exitosamente" : "Invitado agregado exitosamente",
+          {
+            description: editingGuest 
+              ? "Los cambios han sido guardados" 
+              : "El invitado ha sido registrado correctamente",
+          }
+        );
       } else {
         const error = await response.json();
-        toast.error("Error al crear el invitado", {
-          description: error.error || "No se pudo crear el invitado",
-        });
+        toast.error(
+          editingGuest ? "Error al actualizar el invitado" : "Error al crear el invitado",
+          {
+            description: error.error || "No se pudo completar la operación",
+          }
+        );
       }
     } catch (error) {
-      console.error("Error creating guest:", error);
+      console.error("Error saving guest:", error);
       toast.error("Error inesperado", {
         description: "No se pudo conectar con el servidor",
       });
     }
   };
 
-  const filteredGuests = guests.filter((guest) => {
+  const handleEdit = (guest: Guest) => {
+    setEditingGuest(guest);
+    setFormData({
+      firstName: guest.firstName,
+      lastName: guest.lastName,
+      guestType: guest.guestType,
+      familyHeadId: guest.familyHead.id,
+      dietaryRestrictions: guest.dietaryRestrictions || "",
+      specialNeeds: guest.specialNeeds || "",
+    });
+    setShowForm(true);
+  };
+
+  const handleCloseForm = () => {
+    setShowForm(false);
+    setEditingGuest(null);
+    setFormData({
+      firstName: "",
+      lastName: "",
+      guestType: "ADULT",
+      familyHeadId: "",
+      dietaryRestrictions: "",
+      specialNeeds: "",
+    });
+    setTouched({
+      firstName: false,
+      lastName: false,
+      familyHeadId: false,
+    });
+    setErrors({
+      firstName: "",
+      lastName: "",
+      familyHeadId: "",
+    });
+  };
+
+  const handleDelete = async () => {
+    if (!deleteDialog.guestId) return;
+
+    try {
+      const response = await fetch(`/api/guests/${deleteDialog.guestId}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        fetchGuests();
+        fetchFamilies(); // Actualizar el contador
+        toast.success("Invitado eliminado", {
+          description: "El invitado ha sido eliminado correctamente",
+        });
+      } else {
+        toast.error("Error al eliminar", {
+          description: "No se pudo eliminar el invitado",
+        });
+      }
+    } catch (error) {
+      console.error("Error deleting guest:", error);
+      toast.error("Error inesperado", {
+        description: "No se pudo conectar con el servidor",
+      });
+    } finally {
+      setDeleteDialog({ open: false, guestId: null, guestName: "" });
+    }
+  };
+
+  const filteredGuests = Array.isArray(guests) ? guests.filter((guest) => {
     const matchesSearch =
       guest.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       guest.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -223,11 +316,11 @@ export default function GuestsPage() {
       filterType === "ALL" || guest.guestType === filterType;
 
     return matchesSearch && matchesFilter;
-  });
+  }) : [];
 
-  const totalAdults = guests.filter((g) => g.guestType === "ADULT").length;
-  const totalChildren = guests.filter((g) => g.guestType === "CHILD").length;
-  const totalConfirmed = guests.filter((g) => g.confirmed).length;
+  const totalAdults = Array.isArray(guests) ? guests.filter((g) => g.guestType === "ADULT").length : 0;
+  const totalChildren = Array.isArray(guests) ? guests.filter((g) => g.guestType === "CHILD").length : 0;
+  const totalConfirmed = Array.isArray(guests) ? guests.filter((g) => g.confirmed).length : 0;
 
   if (loading) {
     return (
@@ -275,7 +368,11 @@ export default function GuestsPage() {
               Administra todos los invitados (adultos y niños)
             </p>
           </div>
-          <Button onClick={() => setShowForm(true)} size="lg">
+          <Button 
+            onClick={() => setShowForm(true)} 
+            size="lg"
+            className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700"
+          >
             <Plus className="w-5 h-5 mr-2" />
             Nuevo Invitado
           </Button>
@@ -365,14 +462,16 @@ export default function GuestsPage() {
         </div>
 
         {/* Form Modal */}
-        <Dialog open={showForm} onOpenChange={setShowForm}>
+        <Dialog open={showForm} onOpenChange={handleCloseForm}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-2xl bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
-                Agregar Nuevo Invitado
+                {editingGuest ? "Editar Invitado" : "Agregar Nuevo Invitado"}
               </DialogTitle>
               <DialogDescription>
-                Agrega acompañantes del cabeza de familia (adultos o niños). El cabeza ya está registrado.
+                {editingGuest 
+                  ? "Modifica los datos del invitado." 
+                  : "Agrega acompañantes del representante de familia (adultos o niños). El representante ya está registrado."}
               </DialogDescription>
             </DialogHeader>
 
@@ -481,7 +580,7 @@ export default function GuestsPage() {
                     </p>
                   ) : (
                     <p className="text-xs text-gray-500 mt-1">
-                      ⚠️ El cabeza de familia ya cuenta como 1 invitado
+                      ⚠️ El representante de familia ya cuenta como 1 invitado
                     </p>
                   )}
                 </div>
@@ -633,6 +732,28 @@ export default function GuestsPage() {
                       )}
                     </div>
                   </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleEdit(guest)}
+                    >
+                      <Pencil className="w-4 h-4 text-blue-600" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() =>
+                        setDeleteDialog({
+                          open: true,
+                          guestId: guest.id,
+                          guestName: `${guest.firstName} ${guest.lastName}`,
+                        })
+                      }
+                    >
+                      <Trash2 className="w-4 h-4 text-red-600" />
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -655,6 +776,20 @@ export default function GuestsPage() {
             </Card>
           )}
         </div>
+
+        {/* Confirm Delete Dialog */}
+        <ConfirmDialog
+          open={deleteDialog.open}
+          onOpenChange={(open) =>
+            setDeleteDialog({ ...deleteDialog, open })
+          }
+          onConfirm={handleDelete}
+          title="¿Eliminar invitado?"
+          description={`¿Estás seguro de eliminar a "${deleteDialog.guestName}"? Esta acción no se puede deshacer.`}
+          confirmText="Sí, eliminar"
+          cancelText="Cancelar"
+          variant="danger"
+        />
       </div>
     </div>
   );

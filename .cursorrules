@@ -9,15 +9,15 @@ Next.js 14 | TypeScript | Prisma | PostgreSQL | Tailwind | Twilio
 ## Reglas de Negocio CRÍTICAS
 ⚠️ **NUNCA violar estas reglas:**
 
-1. **FamilyHead solo ADULTOS**: No permitir guestType CHILD como cabeza de familia
+1. **FamilyHead solo ADULTOS**: No permitir guestType CHILD como representante de familia
 2. **Cupos estrictos**: Validar que Guest[] por familia ≤ FamilyHead.allowedGuests
 3. **Un teléfono por familia**: Solo FamilyHead tiene phone (WhatsApp)
 4. **Asientos automáticos**: Table.capacity = cantidad de Seat[] a crear
-5. **WhatsApp solo a cabezas**: Notification → FamilyHead (no a Guest directamente)
+5. **WhatsApp solo a representantes**: Notification → FamilyHead (no a Guest directamente)
 
 ## Entidades y Relaciones
 
-### FamilyHead (Cabeza de Familia)
+### FamilyHead (Representante de Familia)
 ```typescript
 {
   id: string

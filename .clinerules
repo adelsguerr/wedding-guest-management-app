@@ -17,7 +17,7 @@ Aplicación web completa para gestionar invitados de boda, con funcionalidades d
 ```
 app/
 ├── api/              # API Routes (Backend)
-│   ├── families/    # CRUD de cabezas de familia
+│   ├── families/    # CRUD de representantes de familia
 │   ├── guests/      # CRUD de invitados
 │   ├── tables/      # CRUD de mesas
 │   ├── notifications/ # Envío de WhatsApp
@@ -38,7 +38,7 @@ prisma/
 
 ## Modelo de Datos (Prisma)
 
-### FamilyHead (Cabeza de Familia)
+### FamilyHead (Representante de Familia)
 - **Regla importante**: Solo pueden ser ADULTOS
 - Campos: id, firstName, lastName, phone (WhatsApp), email, allowedGuests
 - Relaciones: tiene muchos Guests, tiene muchas Notifications
@@ -142,7 +142,7 @@ sendBulkWhatsAppMessages(recipients[], onProgress?)
 ## Reglas de Negocio
 
 ### Familias
-1. Solo ADULTOS pueden ser cabezas de familia
+1. Solo ADULTOS pueden ser representantes de familia
 2. Cada familia tiene un allowedGuests definido
 3. Máximo un teléfono por familia (para WhatsApp)
 
@@ -157,7 +157,7 @@ sendBulkWhatsAppMessages(recipients[], onProgress?)
 3. isOccupied se actualiza al asignar invitado
 
 ### Notificaciones
-1. Solo se envían a cabezas de familia (phone)
+1. Solo se envían a representantes de familia (phone)
 2. Se guarda historial completo
 3. Soporta reintentos en caso de fallo
 

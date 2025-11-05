@@ -9,7 +9,32 @@
 
 ## ✅ COMPLETADO
 
-### 🏗️ Fase 1: Configuración Inicial del Proyecto
+### � Fase 5: Gestión de Mesas (CRÍTICO) ⭐ NUEVO
+- [x] **Página `/tables`** - Gestión completa de mesas
+- [x] **CRUD de mesas** - Crear, listar, editar, eliminar con validación
+- [x] **6 tipos de mesa** - Round 8/10, Rectangular 6/8, VIP, Kids
+- [x] **Visualización dual**:
+  - Vista Lista: Cards con estadísticas, grid de asientos, barras de progreso
+  - Vista Salón: Canvas interactivo con react-konva
+- [x] **Canvas interactivo (react-konva)**:
+  - Mesas arrastrables para reorganizar salón
+  - Asientos clicables alrededor de cada mesa
+  - Posiciones guardadas en DB (positionX, positionY)
+  - Zoom (50%-200%), indicadores de ocupación
+  - Gradiente azul-purple para background del salón
+- [x] **Asignación de invitados a asientos**:
+  - Click en asiento abre modal de asignación
+  - Select de invitados disponibles (sin asiento asignado)
+  - Remover invitados de asientos
+  - Validación: un invitado = un asiento
+- [x] **API `/api/seats/[id]`** - GET/PATCH para asientos
+- [x] **Estadísticas en tiempo real**:
+  - Total mesas, total asientos
+  - Asientos ocupados/disponibles con %
+  - Colores: gris (vacía), amarillo (parcial), verde (completa)
+- [x] **Filtros por tipo de mesa** - 7 filtros (ALL + 6 tipos)
+
+### �🏗️ Fase 1: Configuración Inicial del Proyecto
 - [x] Creación del proyecto Next.js 14 (App Router) con TypeScript
 - [x] Configuración de Tailwind CSS con tema personalizado (pink-purple gradients)
 - [x] Instalación de shadcn/ui components
@@ -19,7 +44,7 @@
 
 ### 🗄️ Fase 2: Base de Datos
 - [x] **Schema de Prisma completo** con 5 modelos:
-  - `FamilyHead` - Cabezas de familia (solo adultos)
+  - `FamilyHead` - Representantes de familia (solo adultos)
   - `Guest` - Invitados (adultos y niños)
   - `Table` - Mesas (6 tipos)
   - `Seat` - Asientos (auto-generados)
@@ -33,10 +58,10 @@
   - Mantiene integridad de datos históricos
 
 ### 🔐 Fase 3: Reglas de Negocio Críticas
-- [x] **Cabeza de familia solo adultos** - Validación en schema
-- [x] **Cabeza de familia cuenta como invitado** - Auto-creación al registrar familia
+- [x] **Representante de familia solo adultos** - Validación en schema
+- [x] **Representante de familia cuenta como invitado** - Auto-creación al registrar familia
 - [x] **Validación de cupos** - No puede exceder `allowedGuests`
-- [x] **WhatsApp solo a cabezas** - Campo `phone` único en FamilyHead
+- [x] **WhatsApp solo a representantes** - Campo `phone` único en FamilyHead
 - [x] **Asientos auto-generados** - Al crear mesa según `capacity`
 
 ### 🎨 Fase 4: UI Components (shadcn/ui)
@@ -70,8 +95,8 @@
 - [x] Filtros y búsqueda (pendiente implementar)
 - [x] Estados de confirmación visual (badges)
 - [x] Botón eliminar con confirmación
-- [x] **Auto-creación de Guest para cabeza de familia**
-- [x] Contador actualizado: `X/Y invitados` (incluye cabeza)
+- [x] **Auto-creación de Guest para representante de familia**
+- [x] Contador actualizado: `X/Y invitados` (incluye representante)
 - [x] **Validación de formularios**:
   - Nombre (mínimo 2 caracteres)
   - Apellido (mínimo 2 caracteres)
@@ -470,9 +495,9 @@ npm install react-beautiful-dnd @types/react-beautiful-dnd
 - Cambiar entre ellas editando `DATABASE_URL` en `.env`
 
 ### Reglas de Negocio NO NEGOCIABLES
-1. Cabeza de familia = Adulto SIEMPRE
-2. Cabeza de familia cuenta en `allowedGuests`
-3. WhatsApp solo a número del cabeza
+1. Representante de familia = Adulto SIEMPRE
+2. Representante de familia cuenta en `allowedGuests`
+3. WhatsApp solo a número del representante
 4. Borrado lógico, NUNCA físico
 5. Asientos auto-generados al crear mesa
 
@@ -494,7 +519,7 @@ npx prisma generate   # Regenerar cliente
 ✨ **Validación visual** sin alerts nativos  
 ✨ **Modales personalizados** con animaciones  
 ✨ **Toast notifications** profesionales  
-✨ **Auto-creación** de invitado cabeza de familia  
+✨ **Auto-creación** de invitado representante de familia  
 ✨ **Dual database** (local + cloud)  
 ✨ **TypeScript** 100% tipado  
 ✨ **Documentación** completa para IAs  

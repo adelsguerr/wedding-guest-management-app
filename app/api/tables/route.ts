@@ -38,7 +38,7 @@ export async function GET() {
         },
       },
       orderBy: {
-        name: 'asc',
+        displayOrder: 'asc', // Ordenar por displayOrder primero
       },
     });
 
@@ -58,6 +58,15 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { name, tableType, capacity, location, positionX, positionY } = body;
 
+    // Obtener el siguiente displayOrder (última mesa + 1)
+    const lastTable = await prisma.table.findFirst({
+      where: { isDeleted: false },
+      orderBy: { displayOrder: 'desc' },
+      select: { displayOrder: true },
+    });
+    
+    const nextOrder = (lastTable?.displayOrder ?? -1) + 1;
+
     const table = await prisma.table.create({
       data: {
         name,
@@ -66,6 +75,7 @@ export async function POST(request: Request) {
         location,
         positionX,
         positionY,
+        displayOrder: nextOrder, // Asignar orden automáticamente
         seats: {
           create: Array.from({ length: capacity }, (_, i) => ({
             seatNumber: i + 1,

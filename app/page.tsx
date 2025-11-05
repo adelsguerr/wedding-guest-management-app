@@ -67,7 +67,7 @@ export default function Home() {
               <Users className="w-12 h-12 text-pink-600 mb-2" />
               <CardTitle>Gestión de Familias</CardTitle>
               <CardDescription>
-                Organiza cabezas de familia y sus invitados (adultos y niños)
+                Organiza representantes de familia y sus invitados (adultos y niños)
               </CardDescription>
             </CardHeader>
           </Card>
@@ -117,10 +117,10 @@ export default function Home() {
             </div>
             <div>
               <h4 className="text-xl font-bold mb-2">
-                Registra Cabezas de Familia
+                Registra Representantes de Familia
               </h4>
               <p className="text-gray-600">
-                Agrega los datos de contacto de cada cabeza de familia (solo
+                Agrega los datos de contacto de cada representante de familia (solo
                 adultos) y asigna el número de invitados permitidos por familia.
               </p>
             </div>

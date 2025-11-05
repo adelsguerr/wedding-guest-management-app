@@ -56,6 +56,98 @@ export async function PATCH(
   try {
     const body = await request.json();
     
+    // Si se está cambiando la capacidad, validar que no haya asientos ocupados fuera del nuevo rango
+    if ('capacity' in body) {
+      const newCapacity = body.capacity;
+      
+      // Obtener asientos ocupados de esta mesa
+      const occupiedSeats = await prisma.seat.findMany({
+        where: {
+          tableId: params.id,
+          isDeleted: false,
+          guest: {
+            isNot: null, // Asientos que tienen un invitado asignado
+          },
+        },
+        include: {
+          guest: {
+            select: {
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+        orderBy: {
+          seatNumber: 'desc',
+        },
+      });
+
+      // Verificar si hay asientos ocupados con número mayor a la nueva capacidad
+      const seatsOutOfRange = occupiedSeats.filter(seat => seat.seatNumber > newCapacity);
+      
+      if (seatsOutOfRange.length > 0) {
+        const guestNames = seatsOutOfRange
+          .map(seat => `${seat.guest?.firstName} ${seat.guest?.lastName} (Asiento #${seat.seatNumber})`)
+          .join(', ');
+        
+        return NextResponse.json(
+          { 
+            error: 'No se puede reducir la capacidad',
+            details: `Los siguientes asientos están ocupados y quedarían fuera del rango: ${guestNames}. Por favor, libera estos asientos antes de reducir la capacidad.`,
+            occupiedSeats: seatsOutOfRange.map(s => ({
+              seatNumber: s.seatNumber,
+              guestName: `${s.guest?.firstName} ${s.guest?.lastName}`,
+            })),
+          },
+          { status: 400 }
+        );
+      }
+
+      // Si la nueva capacidad es diferente, ajustar los asientos
+      const currentTable = await prisma.table.findUnique({
+        where: { id: params.id },
+        include: {
+          seats: {
+            where: { isDeleted: false },
+          },
+        },
+      });
+
+      if (currentTable) {
+        const currentCapacity = currentTable.seats.length;
+        
+        // Si aumentamos la capacidad, crear nuevos asientos
+        if (newCapacity > currentCapacity) {
+          const seatsToCreate = [];
+          for (let i = currentCapacity + 1; i <= newCapacity; i++) {
+            seatsToCreate.push({
+              tableId: params.id,
+              seatNumber: i,
+              isOccupied: false,
+            });
+          }
+          await prisma.seat.createMany({
+            data: seatsToCreate,
+          });
+        }
+        // Si reducimos la capacidad, marcar asientos extras como eliminados
+        else if (newCapacity < currentCapacity) {
+          await prisma.seat.updateMany({
+            where: {
+              tableId: params.id,
+              seatNumber: {
+                gt: newCapacity,
+              },
+            },
+            data: {
+              isDeleted: true,
+              deletedAt: new Date(),
+            },
+          });
+        }
+      }
+    }
+    
     const table = await prisma.table.update({
       where: { id: params.id },
       data: body,

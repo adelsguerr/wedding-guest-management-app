@@ -5,9 +5,9 @@
 Este es un sistema de gestión de invitados de boda con Next.js 14, TypeScript, Prisma y WhatsApp.
 
 ### Reglas Críticas del Negocio
-1. **CABEZAS DE FAMILIA SOLO SON ADULTOS** - Nunca crear FamilyHead con guestType CHILD
+1. **REPRESENTANTES DE FAMILIA SOLO SON ADULTOS** - Nunca crear FamilyHead con guestType CHILD
 2. **Validar cupos** - Un FamilyHead con allowedGuests=3 solo puede tener 3 Guests máximo
-3. **WhatsApp solo a cabezas** - Notificaciones solo se envían a FamilyHead.phone
+3. **WhatsApp solo a representantes** - Notificaciones solo se envían a FamilyHead.phone
 4. **Asientos auto-generados** - Al crear Table, crear Seat[] automáticamente según capacity
 
 ### Stack

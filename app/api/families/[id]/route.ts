@@ -59,16 +59,41 @@ export async function PATCH(
   try {
     const body = await request.json();
     
+    // Convertir email vacío a null si existe
+    if ('email' in body && (!body.email || body.email.trim() === '')) {
+      body.email = null;
+    }
+    
     const family = await prisma.familyHead.update({
       where: { id: params.id },
       data: body,
     });
 
     return NextResponse.json(family);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error updating family:', error);
+    
+    // Manejo de errores específicos de Prisma
+    if (error.code === 'P2002') {
+      const field = error.meta?.target?.[0] || 'campo';
+      return NextResponse.json(
+        { error: `Ya existe una familia con ese ${field}` },
+        { status: 409 }
+      );
+    }
+    
+    if (error.code === 'P2025') {
+      return NextResponse.json(
+        { error: 'Familia no encontrada' },
+        { status: 404 }
+      );
+    }
+    
     return NextResponse.json(
-      { error: 'Error al actualizar la familia' },
+      { 
+        error: 'Error al actualizar la familia',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      },
       { status: 500 }
     );
   }

@@ -1,0 +1,908 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { 
+  Plus, 
+  Users, 
+  ArrowLeft, 
+  Trash2,
+  Circle,
+  Square,
+  Crown,
+  Baby,
+  CheckCircle,
+  XCircle,
+  Edit,
+  LayoutGrid,
+  List
+} from "lucide-react";
+import dynamic from "next/dynamic";
+
+// Importar el canvas de forma dinámica para evitar problemas de SSR
+const TableCanvas = dynamic(() => import("@/components/table-canvas"), {
+  ssr: false,
+  loading: () => <p className="text-center p-8">Cargando visualización...</p>,
+});
+
+interface Seat {
+  id: string;
+  seatNumber: number;
+  isOccupied: boolean;
+  guest?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    guestType: string;
+  };
+}
+
+interface Guest {
+  id: string;
+  firstName: string;
+  lastName: string;
+  guestType: string;
+  confirmed: boolean;
+  seatId?: string | null;
+  familyHead: {
+    firstName: string;
+    lastName: string;
+  };
+}
+
+interface Table {
+  id: string;
+  name: string;
+  tableType: string;
+  capacity: number;
+  location?: string;
+  positionX?: number;
+  positionY?: number;
+  seats: Seat[];
+  _count: {
+    seats: number;
+  };
+}
+
+const TABLE_TYPES = [
+  { value: "ROUND", label: "Mesa Redonda", icon: Circle },
+  { value: "RECTANGULAR", label: "Mesa Rectangular", icon: Square },
+  { value: "VIP", label: "Mesa VIP", icon: Crown },
+  { value: "KIDS", label: "Mesa Infantil", icon: Baby },
+];
+
+export default function TablesPage() {
+  const [tables, setTables] = useState<Table[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editingTable, setEditingTable] = useState<Table | null>(null);
+  const [filterType, setFilterType] = useState<string>("ALL");
+  const [viewMode, setViewMode] = useState<"list" | "canvas">("list");
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean;
+    tableId: string | null;
+    tableName: string;
+  }>({
+    open: false,
+    tableId: null,
+    tableName: "",
+  });
+
+  // Estados para asignación de asientos
+  const [showSeatAssignment, setShowSeatAssignment] = useState(false);
+  const [selectedSeat, setSelectedSeat] = useState<Seat | null>(null);
+  const [selectedTable, setSelectedTable] = useState<Table | null>(null);
+  const [availableGuests, setAvailableGuests] = useState<Guest[]>([]);
+  const [selectedGuestId, setSelectedGuestId] = useState<string>("");
+  
+  // Estado para confirmación de liberación de asiento
+  const [releaseDialog, setReleaseDialog] = useState<{
+    open: boolean;
+    guestName: string;
+  }>({
+    open: false,
+    guestName: "",
+  });
+
+  const [formData, setFormData] = useState({
+    name: "",
+    tableType: "ROUND",
+    capacity: 8,
+    location: "",
+  });
+
+  useEffect(() => {
+    fetchTables();
+  }, []);
+
+  // Recargar mesas cuando cambias a vista Canvas para tener posiciones actualizadas
+  useEffect(() => {
+    if (viewMode === "canvas" && tables.length > 0) {
+      // Solo recargar si ya hay mesas cargadas (evitar doble carga inicial)
+      fetchTables();
+    }
+  }, [viewMode]);
+
+  const fetchTables = async () => {
+    try {
+      const response = await fetch("/api/tables", {
+        cache: 'no-store', // Desactivar caché para obtener datos frescos
+      });
+      const data = await response.json();
+      // Asegurar que siempre sea un array
+      setTables(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Error fetching tables:", error);
+      toast.error("Error al cargar las mesas");
+      setTables([]); // Establecer array vacío en caso de error
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!formData.name.trim()) {
+      toast.error("El nombre de la mesa es obligatorio");
+      return;
+    }
+
+    try {
+      const url = editingTable ? `/api/tables/${editingTable.id}` : "/api/tables";
+      const method = editingTable ? "PATCH" : "POST";
+
+      const response = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+
+      if (response.ok) {
+        setFormData({
+          name: "",
+          tableType: "ROUND",
+          capacity: 8,
+          location: "",
+        });
+        setShowForm(false);
+        setEditingTable(null);
+        fetchTables();
+        toast.success(
+          editingTable ? "Mesa actualizada exitosamente" : "Mesa creada exitosamente",
+          {
+            description: `${formData.name} con ${formData.capacity} asientos`,
+          }
+        );
+      } else {
+        const error = await response.json();
+        
+        // Mostrar mensaje especial si hay asientos ocupados fuera del rango
+        if (error.occupiedSeats && error.occupiedSeats.length > 0) {
+          const seatsList = error.occupiedSeats
+            .map((s: any) => `• ${s.guestName} en asiento #${s.seatNumber}`)
+            .join('\n');
+          
+          toast.error("No se puede reducir la capacidad", {
+            description: `Hay asientos ocupados fuera del nuevo rango:\n${seatsList}\n\nLibera estos asientos primero.`,
+            duration: 8000, // Más tiempo para leer el mensaje
+          });
+        } else {
+          toast.error(
+            editingTable ? "Error al actualizar la mesa" : "Error al crear la mesa",
+            {
+              description: error.details || error.error || "Intenta de nuevo",
+            }
+          );
+        }
+      }
+    } catch (error) {
+      toast.error(editingTable ? "Error al actualizar la mesa" : "Error al crear la mesa");
+    }
+  };
+
+  const handleEdit = (table: Table) => {
+    setEditingTable(table);
+    setFormData({
+      name: table.name,
+      tableType: table.tableType,
+      capacity: table.capacity,
+      location: table.location || "",
+    });
+    setShowForm(true);
+  };
+
+  const handleCloseForm = () => {
+    setShowForm(false);
+    setEditingTable(null);
+    setFormData({
+      name: "",
+      tableType: "ROUND",
+      capacity: 8,
+      location: "",
+    });
+  };
+
+  const handleDelete = async () => {
+    if (!deleteDialog.tableId) return;
+
+    try {
+      const response = await fetch(`/api/tables/${deleteDialog.tableId}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        fetchTables();
+        toast.success("Mesa eliminada exitosamente");
+      } else {
+        toast.error("Error al eliminar la mesa");
+      }
+    } catch (error) {
+      toast.error("Error al eliminar la mesa");
+    } finally {
+      setDeleteDialog({ open: false, tableId: null, tableName: "" });
+    }
+  };
+
+  // Funciones para asignación de asientos
+  const handleSeatClick = async (seat: Seat, table: Table) => {
+    setSelectedSeat(seat);
+    setSelectedTable(table);
+    // Si el asiento tiene un invitado, usar su ID, sino dejar vacío
+    setSelectedGuestId(seat.guest?.id || "");
+    
+    // Cargar invitados disponibles (sin asiento asignado o con este asiento)
+    try {
+      const response = await fetch("/api/guests");
+      const allGuests: Guest[] = await response.json();
+      const available = Array.isArray(allGuests) 
+        ? allGuests.filter((g) => !g.seatId || g.seatId === seat.id)
+        : [];
+      setAvailableGuests(available);
+      setShowSeatAssignment(true);
+    } catch (error) {
+      console.error("Error loading guests:", error);
+      toast.error("Error al cargar invitados");
+    }
+  };
+
+  const handleAssignSeat = async () => {
+    if (!selectedSeat || !selectedGuestId) return;
+
+    try {
+      const response = await fetch(`/api/seats/${selectedSeat.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          guestId: selectedGuestId,
+        }),
+      });
+
+      if (response.ok) {
+        fetchTables();
+        setShowSeatAssignment(false);
+        setSelectedSeat(null);
+        setSelectedTable(null);
+        setSelectedGuestId("");
+        toast.success("Asiento asignado exitosamente");
+      } else {
+        const error = await response.json();
+        toast.error("Error al asignar asiento", {
+          description: error.error || "Intenta de nuevo",
+        });
+      }
+    } catch (error) {
+      console.error("Error assigning seat:", error);
+      toast.error("Error al asignar asiento");
+    }
+  };
+
+  const handleReleaseSeat = async () => {
+    if (!selectedSeat) return;
+
+    try {
+      const response = await fetch(`/api/seats/${selectedSeat.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guestId: null }),
+      });
+      
+      if (response.ok) {
+        fetchTables();
+        // Actualizar el asiento seleccionado para remover el guest
+        setSelectedSeat({ ...selectedSeat, guest: undefined, isOccupied: false });
+        setSelectedGuestId(""); // Limpiar selección
+        toast.success("Asiento liberado - Puedes asignarlo a otra persona");
+      } else {
+        toast.error("Error al liberar asiento");
+      }
+    } catch (error) {
+      toast.error("Error al liberar asiento");
+    } finally {
+      setReleaseDialog({ open: false, guestName: "" });
+    }
+  };
+
+  const handleTableTypeChange = (type: string) => {
+    setFormData({ 
+      ...formData, 
+      tableType: type,
+      // No cambiamos la capacidad automáticamente - el usuario la establece manualmente
+    });
+  };
+
+  const getTableTypeIcon = (type: string) => {
+    const tableType = TABLE_TYPES.find(t => t.value === type);
+    return tableType?.icon || Circle;
+  };
+
+  const getTableTypeLabel = (type: string) => {
+    const tableType = TABLE_TYPES.find(t => t.value === type);
+    return tableType?.label || type;
+  };
+
+  const filteredTables = tables.filter(table => {
+    if (filterType === "ALL") return true;
+    return table.tableType === filterType;
+  });
+
+  const occupiedSeats = Array.isArray(tables) 
+    ? tables.reduce((acc, table) => 
+        acc + table.seats.filter(seat => seat.isOccupied).length, 0
+      )
+    : 0;
+  const totalSeats = Array.isArray(tables)
+    ? tables.reduce((acc, table) => acc + table.capacity, 0)
+    : 0;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <Link href="/">
+              <Button variant="outline" size="icon">
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+            </Link>
+            <div>
+              <h2 className="text-4xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
+                Gestión de Mesas
+              </h2>
+              <p className="text-gray-600 mt-2">
+                Organiza mesas y asientos para el evento
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Link href="/families">
+              <Button variant="outline">Familias</Button>
+            </Link>
+            <Link href="/guests">
+              <Button variant="outline">Invitados</Button>
+            </Link>
+            <div className="flex border rounded-lg p-1">
+              <Button
+                variant={viewMode === "list" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("list")}
+              >
+                <List className="w-4 h-4 mr-1" />
+                Lista
+              </Button>
+              <Button
+                variant={viewMode === "canvas" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("canvas")}
+              >
+                <LayoutGrid className="w-4 h-4 mr-1" />
+                Salón
+              </Button>
+            </div>
+            <Button onClick={() => setShowForm(!showForm)} size="lg">
+              <Plus className="w-5 h-5 mr-2" />
+              Nueva Mesa
+            </Button>
+          </div>
+        </div>
+
+        {/* Estadísticas */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Mesas</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{tables.length}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Asientos</CardTitle>
+              <Circle className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{totalSeats}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Asientos Ocupados</CardTitle>
+              <CheckCircle className="h-4 w-4 text-green-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{occupiedSeats}</div>
+              <p className="text-xs text-muted-foreground">
+                {totalSeats > 0 ? Math.round((occupiedSeats / totalSeats) * 100) : 0}% ocupación
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Asientos Disponibles</CardTitle>
+              <XCircle className="h-4 w-4 text-gray-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-gray-600">{totalSeats - occupiedSeats}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Filtros */}
+        <div className="mb-6 flex gap-2 flex-wrap">
+          <Button
+            variant={filterType === "ALL" ? "default" : "outline"}
+            onClick={() => setFilterType("ALL")}
+            size="sm"
+          >
+            Todas ({tables.length})
+          </Button>
+          {TABLE_TYPES.map((type) => {
+            const count = tables.filter(t => t.tableType === type.value).length;
+            const Icon = type.icon;
+            return (
+              <Button
+                key={type.value}
+                variant={filterType === type.value ? "default" : "outline"}
+                onClick={() => setFilterType(type.value)}
+                size="sm"
+              >
+                <Icon className="w-4 h-4 mr-1" />
+                {type.label.split("(")[0].trim()} ({count})
+              </Button>
+            );
+          })}
+        </div>
+
+        {/* Vista de Mesas */}
+        {viewMode === "canvas" ? (
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <TableCanvas tables={filteredTables} onTableUpdate={fetchTables} />
+          </div>
+        ) : filteredTables.length === 0 ? (
+          <Card className="p-12 text-center">
+            <Users className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+            <h3 className="text-xl font-semibold mb-2">No hay mesas registradas</h3>
+            <p className="text-gray-600 mb-4">
+              {filterType === "ALL" 
+                ? "Comienza agregando tu primera mesa" 
+                : `No hay mesas del tipo seleccionado`}
+            </p>
+            {filterType === "ALL" && (
+              <Button onClick={() => setShowForm(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Crear Primera Mesa
+              </Button>
+            )}
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredTables.map((table) => {
+              const Icon = getTableTypeIcon(table.tableType);
+              const occupied = table.seats.filter(s => s.isOccupied).length;
+              const occupancyPercent = Math.round((occupied / table.capacity) * 100);
+              
+              return (
+                <Card key={table.id} className="hover:shadow-lg transition-shadow">
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2">
+                        <Icon className="w-6 h-6 text-purple-600" />
+                        <div>
+                          <CardTitle className="text-xl">{table.name}</CardTitle>
+                          <p className="text-sm text-gray-500 mt-1">
+                            {getTableTypeLabel(table.tableType)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEdit(table)}
+                        >
+                          <Edit className="w-4 h-4 text-blue-600" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() =>
+                            setDeleteDialog({
+                              open: true,
+                              tableId: table.id,
+                              tableName: table.name,
+                            })
+                          }
+                        >
+                          <Trash2 className="w-4 h-4 text-red-600" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Capacidad:</span>
+                        <span className="font-semibold">{table.capacity} personas</span>
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Ocupación:</span>
+                        <span className="font-semibold">
+                          {occupied}/{table.capacity} ({occupancyPercent}%)
+                        </span>
+                      </div>
+
+                      {table.location && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600">Ubicación:</span>
+                          <span className="text-sm">{table.location}</span>
+                        </div>
+                      )}
+
+                      {/* Barra de progreso */}
+                      <div className="mt-3">
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div
+                            className={`h-2 rounded-full transition-all ${
+                              occupancyPercent === 100
+                                ? "bg-green-600"
+                                : occupancyPercent > 50
+                                ? "bg-yellow-500"
+                                : "bg-blue-500"
+                            }`}
+                            style={{ width: `${occupancyPercent}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Grid de asientos */}
+                      <div className="mt-4 pt-3 border-t">
+                        <p className="text-xs text-gray-500 mb-2">Asientos:</p>
+                        <div className="grid grid-cols-5 gap-1">
+                          {table.seats.map((seat) => (
+                            <button
+                              key={seat.id}
+                              onClick={() => handleSeatClick(seat, table)}
+                              className={`
+                                w-8 h-8 rounded flex items-center justify-center text-xs font-semibold
+                                transition-all hover:scale-110 cursor-pointer
+                                ${seat.isOccupied 
+                                  ? "bg-green-500 text-white hover:bg-green-600" 
+                                  : "bg-gray-200 text-gray-600 hover:bg-gray-300"}
+                              `}
+                              title={
+                                seat.isOccupied && seat.guest
+                                  ? `${seat.guest.firstName} ${seat.guest.lastName} - Click para cambiar`
+                                  : "Disponible - Click para asignar"
+                              }
+                            >
+                              {seat.seatNumber}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Modal para Agregar/Editar Mesa */}
+        <Dialog open={showForm} onOpenChange={handleCloseForm}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-2xl bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
+                {editingTable ? "Editar Mesa" : "Agregar Nueva Mesa"}
+              </DialogTitle>
+              <DialogDescription>
+                {editingTable 
+                  ? "Modifica los datos de la mesa. Los cambios en capacidad afectarán los asientos."
+                  : "Los asientos se crearán automáticamente según la capacidad."}
+              </DialogDescription>
+            </DialogHeader>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="name">Nombre de la Mesa *</Label>
+                <Input
+                  id="name"
+                  placeholder="Ej: Mesa 1, Mesa Novios, Mesa VIP..."
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
+                  required
+                />
+              </div>
+
+              <div>
+                <Label>Tipo de Mesa *</Label>
+                <div className="grid grid-cols-2 gap-3 mt-2">
+                  {TABLE_TYPES.map((type) => {
+                    const Icon = type.icon;
+                    return (
+                      <button
+                        key={type.value}
+                        type="button"
+                        onClick={() => handleTableTypeChange(type.value)}
+                        className={`
+                          p-3 rounded-lg border-2 transition-all text-left
+                          ${formData.tableType === type.value
+                            ? "border-purple-600 bg-purple-50"
+                            : "border-gray-200 hover:border-gray-300"}
+                        `}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Icon className={`w-5 h-5 ${
+                            formData.tableType === type.value 
+                              ? "text-purple-600" 
+                              : "text-gray-400"
+                          }`} />
+                          <div>
+                            <p className="font-semibold text-sm">{type.label.split("(")[0]}</p>
+                            <p className="text-xs text-gray-500">{type.label.match(/\(([^)]+)\)/)?.[1]}</p>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="capacity">Capacidad (Asientos) *</Label>
+                <Input
+                  id="capacity"
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={formData.capacity}
+                  onChange={(e) =>
+                    setFormData({ ...formData, capacity: parseInt(e.target.value) || 0 })
+                  }
+                  required
+                />
+                {editingTable ? (
+                  <>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Capacidad actual: {editingTable.capacity} asientos
+                    </p>
+                    {formData.capacity < editingTable.capacity && (
+                      <p className="text-xs text-orange-600 mt-1 font-medium">
+                        ⚠️ Asegúrate de que no haya invitados asignados a los asientos #{formData.capacity + 1} - #{editingTable.capacity}
+                      </p>
+                    )}
+                    {formData.capacity > editingTable.capacity && (
+                      <p className="text-xs text-green-600 mt-1 font-medium">
+                        ✅ Se agregarán {formData.capacity - editingTable.capacity} asientos nuevos
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Se crearán {formData.capacity} asientos automáticamente
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <Label htmlFor="location">Ubicación (Opcional)</Label>
+                <Input
+                  id="location"
+                  placeholder="Ej: Centro del salón, Junto a ventana..."
+                  value={formData.location}
+                  onChange={(e) =>
+                    setFormData({ ...formData, location: e.target.value })
+                  }
+                />
+              </div>
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleCloseForm}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit">
+                  {editingTable ? (
+                    <>
+                      <Edit className="w-4 h-4 mr-2" />
+                      Actualizar Mesa
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Crear Mesa
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal de Asignación de Asientos */}
+        <Dialog open={showSeatAssignment} onOpenChange={setShowSeatAssignment}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="text-2xl bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
+                Asignar Asiento
+              </DialogTitle>
+              <DialogDescription>
+                {selectedTable && selectedSeat && (
+                  <span>
+                    Mesa: <strong>{selectedTable.name}</strong> - Asiento{" "}
+                    <strong>#{selectedSeat.seatNumber}</strong>
+                  </span>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              {selectedSeat?.guest && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <p className="text-sm text-blue-800">
+                        <strong>Ocupado actualmente por:</strong>
+                        <br />
+                        {selectedSeat.guest.firstName} {selectedSeat.guest.lastName}
+                      </p>
+                    </div>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {
+                        if (!selectedSeat?.guest) return;
+                        setReleaseDialog({
+                          open: true,
+                          guestName: `${selectedSeat.guest.firstName} ${selectedSeat.guest.lastName}`,
+                        });
+                      }}
+                    >
+                      Liberar
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Mostrar dropdown solo si el asiento está vacío */}
+              {!selectedSeat?.guest && (
+                <div className="space-y-2">
+                  <Label htmlFor="guest-select">Seleccionar Invitado</Label>
+                  <Select
+                    value={selectedGuestId}
+                    onValueChange={setSelectedGuestId}
+                  >
+                    <SelectTrigger id="guest-select">
+                      <SelectValue placeholder="Selecciona un invitado..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableGuests.map((guest) => (
+                        <SelectItem key={guest.id} value={guest.id}>
+                          {guest.guestType === "CHILD" && "👶 "}
+                          {guest.firstName} {guest.lastName}
+                          {" - "}
+                          <span className="text-xs text-gray-500">
+                            {guest.familyHead.firstName} {guest.familyHead.lastName}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500">
+                    {availableGuests.length} invitados disponibles
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setShowSeatAssignment(false)}
+              >
+                Cancelar
+              </Button>
+              {/* Mostrar botón Asignar solo si:
+                  1. Hay un invitado seleccionado Y
+                  2. Es diferente al invitado actual (si existe) */}
+              {selectedGuestId && 
+               selectedGuestId !== "unassign" && 
+               selectedGuestId !== selectedSeat?.guest?.id && (
+                <Button onClick={handleAssignSeat}>
+                  Asignar Asiento
+                </Button>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog de Confirmación de Eliminación */}
+        <ConfirmDialog
+          open={deleteDialog.open}
+          onOpenChange={(open) =>
+            setDeleteDialog({ ...deleteDialog, open })
+          }
+          onConfirm={handleDelete}
+          title="¿Eliminar mesa?"
+          description={`¿Estás seguro de que deseas eliminar "${deleteDialog.tableName}"? Esta acción no se puede deshacer y se eliminarán todos los asientos.`}
+          confirmText="Eliminar"
+          variant="danger"
+        />
+
+        {/* Dialog de Confirmación de Liberación de Asiento */}
+        <ConfirmDialog
+          open={releaseDialog.open}
+          onOpenChange={(open) =>
+            setReleaseDialog({ ...releaseDialog, open })
+          }
+          onConfirm={handleReleaseSeat}
+          title="¿Liberar asiento?"
+          description={`¿Estás seguro de que deseas liberar el asiento de "${releaseDialog.guestName}"? El modal permanecerá abierto para que puedas asignarlo a otra persona si lo deseas.`}
+          confirmText="Liberar"
+          variant="danger"
+        />
+      </div>
+    </div>
+  );
+}
