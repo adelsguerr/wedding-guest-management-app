@@ -6,6 +6,7 @@ export interface FamilyHead {
   lastName: string;
   phone: string;
   email?: string | null;
+  inviteCode?: string | null;
   allowedGuests: number;
   confirmedGuests: number;
   confirmationStatus: "PENDING" | "CONFIRMED" | "DECLINED" | "NO_RESPONSE";

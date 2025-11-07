@@ -201,7 +201,7 @@ npm run dev
 
 ## 📈 Próximas Características (Roadmap)
 
-- [ ] Autenticación de usuarios
+- [x] Autenticación de usuarios (Better Auth)
 - [ ] Portal público para confirmación
 - [ ] Generación de códigos QR
 - [ ] Exportar lista de invitados a PDF/Excel

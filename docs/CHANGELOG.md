@@ -4,13 +4,60 @@
 
 **Fecha de inicio:** 23 de octubre de 2025  
 **Última actualización:** 5 de noviembre de 2025  
-**Stack:** Next.js 15, TypeScript, Prisma, PostgreSQL, Tailwind CSS, shadcn/ui, Zustand, Sonner
+**Stack:** Next.js 15, TypeScript, Prisma, PostgreSQL, Tailwind CSS, shadcn/ui, Zustand, Sonner, Better Auth
 
 ---
 
 ## ✅ COMPLETADO
 
-### 🎨 Fase 6: Refactorización a Zustand y UX (NUEVO) ⭐
+### 🔐 Fase 7: Autenticación con Better Auth (NUEVO) ⭐
+- [x] **Better Auth instalado y configurado** - Sistema de autenticación moderno
+  - Email/Password authentication
+  - Sesiones persistentes (7 días)
+  - Tokens seguros con cookies
+  - Soporte para roles (admin/guest)
+- [x] **Modelos de base de datos**:
+  - `User` - Usuarios del sistema (email, name, role, emailVerified)
+  - `Session` - Sesiones activas con tokens únicos
+  - `Account` - Cuentas con passwords hasheados (bcryptjs)
+  - `Verification` - Tokens de verificación de email
+- [x] **Configuración completa**:
+  - `lib/auth.ts` - Servidor de autenticación con Prisma adapter
+  - `lib/auth-client.ts` - Cliente React con hooks
+  - `app/api/auth/[...all]/route.ts` - API routes automáticas
+  - `.env` - Variables BETTER_AUTH_SECRET y BETTER_AUTH_URL
+- [x] **Página de Login/Register** (`/login`):
+  - Tabs para Login y Registro
+  - Validación de formularios
+  - Manejo de errores con Sonner toasts
+  - Diseño pink-purple consistente con el sistema
+  - Confirmación de contraseña
+- [x] **Protección de rutas (middleware.ts)**:
+  - Middleware que protege todas las rutas excepto /login y /api/auth
+  - Verificación de token de sesión en cookies
+  - Redirección automática a /login si no está autenticado
+  - Rutas públicas configurables
+- [x] **Componentes UI de autenticación**:
+  - `UserMenu` - Dropdown con avatar, perfil y logout
+  - `Header` - Navegación con logo, links y UserMenu
+  - Avatar con iniciales automáticas
+  - Información de usuario y rol visible
+- [x] **Utilidades**:
+  - `scripts/create-admin.ts` - Script para crear usuario admin
+  - Credenciales admin: admin@wedding.com / admin123
+  - Hash seguro de passwords con bcryptjs
+- [x] **Hooks React disponibles**:
+  - `useSession()` - Obtener sesión actual
+  - `signIn.email()` - Iniciar sesión
+  - `signUp.email()` - Registrar usuario
+  - `signOut()` - Cerrar sesión
+- [x] **Documentación completa**:
+  - `BETTER_AUTH.md` - Guía completa de implementación y uso
+  - Flujos de autenticación documentados
+  - Ejemplos de código
+  - Checklist de seguridad
+
+### 🎨 Fase 6: Refactorización a Zustand y UX ⭐
 - [x] **Migración completa a Zustand** - 4 stores centralizados
   - `modal-store.ts` - Estado de todos los modales (guest, family, table, seat assignment)
   - `filter-store.ts` - Filtros y búsquedas de todas las páginas
@@ -37,7 +84,7 @@
   - Fix seat assignment modal - actualización tras liberar asiento
   - Eliminación de mensajes duplicados
 
-### 🪑 Fase 5: Gestión de Mesas (CRÍTICO) ⭐
+### 🪑 Fase 5: Gestión de Mesas ⭐
 - [x] **Página `/tables`** - Gestión completa de mesas
 - [x] **CRUD de mesas** - Crear, listar, editar, eliminar con validación
 - [x] **6 tipos de mesa** - Round 8/10, Rectangular 6/8, VIP, Kids
@@ -283,35 +330,60 @@
 
 ## 🚧 PENDIENTE DE IMPLEMENTACIÓN
 
-### 📄 Páginas Faltantes
+### 📄 Próximas Funcionalidades Prioritarias
 
-#### 1. **Mesas y Asignación de Asientos** (`/tables`) - CRÍTICO
-- [ ] Página de gestión de mesas
-- [ ] Modal para crear mesas (con selector de tipo y capacidad)
-- [ ] Visualización de mesas con asientos
-- [ ] **Asignación drag & drop de invitados a asientos**
-- [ ] **Visualización canvas con react-konva** (plano del salón)
-- [ ] Indicador visual de asientos ocupados/libres
-- [ ] Filtros por tipo de mesa
-- [ ] Edición de posición (X, Y) para layout visual
+#### 1. **Portal Público RSVP** (`/rsvp/[token]`) - ALTA PRIORIDAD 📱
+- [ ] Landing page para invitados
+- [ ] Autenticación con código único por familia
+- [ ] Formulario de confirmación de asistencia
+- [ ] Selección de invitados que asistirán
+- [ ] Restricciones alimentarias y necesidades especiales
+- [ ] Mensaje de agradecimiento personalizado
+- [ ] Generación de tokens únicos seguros
+- [ ] Vista mobile-first responsive
+- [ ] **Dependencias:** Better Auth ya implementado ✅
 
-**Dependencias a instalar:**
-```bash
-npm install react-konva konva @types/react-konva
-npm install react-beautiful-dnd @types/react-beautiful-dnd
-```
-
-#### 2. **Notificaciones WhatsApp** (`/notifications`)
-- [ ] Página para enviar mensajes
-- [ ] Selector de tipo de notificación (dropdown con plantillas)
+#### 2. **Sistema de Notificaciones WhatsApp** (`/notifications`) - ALTA PRIORIDAD 💬
+- [ ] Integración con Twilio API
+- [ ] Página de gestión de notificaciones
+- [ ] Plantillas de mensajes predefinidas (8 tipos)
 - [ ] Preview del mensaje antes de enviar
-- [ ] Selector múltiple de familias/todos
+- [ ] Envío masivo a familias seleccionadas
 - [ ] Barra de progreso para envío masivo
-- [ ] Historial de notificaciones enviadas (tabla)
+- [ ] Historial de notificaciones enviadas
 - [ ] Filtros por estado (enviado, fallido, leído)
 - [ ] Re-envío de mensajes fallidos
+- [ ] Variables dinámicas en plantillas (nombre, mesa, etc.)
 
-#### 3. **Detalles de Familia** (`/families/[id]`)
+**Dependencias a configurar:**
+```bash
+# Ya incluidas en .env
+TWILIO_ACCOUNT_SID=your_account_sid
+TWILIO_AUTH_TOKEN=your_auth_token
+TWILIO_WHATSAPP_NUMBER=whatsapp:+14155238886
+```
+
+#### 3. **Mejoras al Canvas de Mesas** - MEDIA PRIORIDAD 🗺️
+- [ ] Zoom más fluido (wheel + pinch)
+- [ ] Mini-mapa de navegación
+- [ ] Snap to grid para alineación
+- [ ] Plantillas pre-diseñadas de salón
+- [ ] Exportar plano a PDF/imagen
+- [ ] Imprimir plano del salón
+- [ ] Vista 3D (opcional)
+- [ ] Undo/Redo de movimientos
+
+#### 4. **Gestión de Roles y Permisos** - MEDIA PRIORIDAD 🔐
+- [ ] Página de administración de usuarios (`/users`)
+- [ ] Asignar roles a usuarios existentes
+- [ ] Crear nuevos usuarios admin
+- [ ] Permisos granulares por funcionalidad
+- [ ] Logs de auditoría de acciones
+- [ ] Verificación de email (activar en Better Auth)
+- [ ] Recuperación de contraseña
+- [ ] 2FA opcional para admins
+
+#### 5. **Detalles de Familia** (`/families/[id]`) - BAJA PRIORIDAD
 - [ ] Vista detallada de una familia
 - [ ] Lista de todos sus invitados
 - [ ] Gráfico de confirmaciones
@@ -320,16 +392,15 @@ npm install react-beautiful-dnd @types/react-beautiful-dnd
 - [ ] Timeline de actividad
 - [ ] Edición inline de datos
 
-#### 4. **Portal Público de Confirmación** (`/rsvp/[token]`)
-- [ ] Landing page para invitados
-- [ ] Formulario de confirmación simple
-- [ ] Selección de invitados que asistirán
-- [ ] Restricciones alimentarias opcionales
-- [ ] Mensaje de agradecimiento
-- [ ] Generación de tokens únicos por familia
-- [ ] Sistema de links personalizados
+#### 6. **Analytics y Reportes** - BAJA PRIORIDAD 📊
+- [ ] Reporte de confirmaciones por día
+- [ ] Gráficos de tendencias
+- [ ] Exportar lista de invitados a Excel/CSV
+- [ ] Reporte de restricciones alimentarias
+- [ ] Dashboard de métricas en tiempo real
+- [ ] Comparativa de confirmados vs esperados
 
-#### 5. **Galería de Fotos** (`/gallery`)
+#### 7. **Galería de Fotos** (`/gallery`) - OPCIONAL
 - [ ] Upload de fotos del evento
 - [ ] Grid responsive de imágenes
 - [ ] Modal lightbox para ver fotos

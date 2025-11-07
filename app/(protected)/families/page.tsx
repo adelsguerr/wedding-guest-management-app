@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Users, Plus, Phone, Mail, UserCheck, Trash2, Pencil, Loader2, X } from "lucide-react";
+import { Users, Plus, Phone, Mail, UserCheck, Trash2, Pencil, Loader2, X, QrCode } from "lucide-react";
 import { useFamilies, useCreateFamily, useUpdateFamily, useDeleteFamily, type FamilyHead } from "@/lib/hooks/use-families";
+import { QRCodeDialog } from "@/components/QRCodeDialog";
 import { useModalStore } from "@/lib/stores/modal-store";
 import { useFilterStore } from "@/lib/stores/filter-store";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -50,6 +51,10 @@ export default function FamiliesPage() {
     allowedGuests: 1,
     confirmationStatus: "PENDING",
   });
+
+  // QR Code Dialog State
+  const [qrDialogOpen, setQRDialogOpen] = useState(false);
+  const [selectedQRFamily, setSelectedQRFamily] = useState<{ id: string; name: string } | null>(null);
 
   // Cargar datos cuando se abre en modo edición
   useEffect(() => {
@@ -198,6 +203,18 @@ export default function FamiliesPage() {
         }
       }
     );
+  };
+
+  const handleOpenQRDialog = (family: FamilyHead) => {
+    if (!family.inviteCode) {
+      showToast('error', 'Sin código de invitación', 'Esta familia no tiene un código de invitación generado');
+      return;
+    }
+    setSelectedQRFamily({
+      id: family.id,
+      name: `${family.firstName} ${family.lastName}`
+    });
+    setQRDialogOpen(true);
   };
 
   // Loading State
@@ -522,6 +539,16 @@ export default function FamiliesPage() {
                     </div>
                   </div>
                   <div className="flex gap-2">
+                    {family.inviteCode && (
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => handleOpenQRDialog(family)}
+                        className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                      >
+                        <QrCode className="w-4 h-4" />
+                      </Button>
+                    )}
                     <Link href={`/families/${family.id}`}>
                       <Button size="sm" variant="outline">
                         Ver Detalles
@@ -676,6 +703,16 @@ export default function FamiliesPage() {
             </form>
           </DialogContent>
         </Dialog>
+
+        {/* QR Code Dialog */}
+        {selectedQRFamily && (
+          <QRCodeDialog
+            isOpen={qrDialogOpen}
+            onClose={() => setQRDialogOpen(false)}
+            familyId={selectedQRFamily.id}
+            familyName={selectedQRFamily.name}
+          />
+        )}
       </div>
     </div>
   );
