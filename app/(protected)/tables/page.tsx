@@ -35,7 +35,6 @@ import {
   Edit,
   LayoutGrid,
   List,
-  Loader2,
   X
 } from "lucide-react";
 import { useTables, useCreateTable, useUpdateTable, useDeleteTable, type Table } from "@/lib/hooks/use-tables";
@@ -45,6 +44,7 @@ import { useModalStore } from "@/lib/stores/modal-store";
 import { useFilterStore } from "@/lib/stores/filter-store";
 import { usePreferencesStore } from "@/lib/stores/preferences-store";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { WeddingLoader } from "@/components/wedding-loader";
 
 interface Seat {
   id: string;
@@ -114,16 +114,23 @@ export default function TablesPage() {
           location: table.location || "",
         });
       }
-    } else if (!isTableModalOpen) {
-      // Reset cuando se cierra el modal
-      setFormData({
-        name: "",
-        tableType: "ROUND",
-        capacity: 8,
-        location: "",
-      });
     }
   }, [isTableModalOpen, tableModalMode, selectedTableId, tables]);
+
+  // Reset form helper
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      tableType: "ROUND",
+      capacity: 8,
+      location: "",
+    });
+  };
+
+  const handleCloseModal = () => {
+    resetForm();
+    closeTableModal();
+  };
 
   // Available guests (sin asiento asignado)
   const availableGuests = allGuests.filter(g => !g.seatId);
@@ -148,6 +155,7 @@ export default function TablesPage() {
         showToast('success', 'Mesa creada', `${formData.name} ha sido creada exitosamente`);
       }
 
+      resetForm();
       closeTableModal();
     } catch (error: any) {
       showToast('error', 'Error', tableModalMode === 'edit' ? 'No se pudo actualizar la mesa' : 'No se pudo crear la mesa');
@@ -278,28 +286,23 @@ export default function TablesPage() {
     : 0;
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-pink-600" />
-      </div>
-    );
+    return <WeddingLoader message="Cargando mesas..." />;
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <Link href="/">
-              <Button variant="outline" size="icon">
-                <ArrowLeft className="w-5 h-5" />
-              </Button>
-            </Link>
-            <div>
-              <h2 className="text-4xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
-                Gestión de Mesas
-              </h2>
+    <div className="container mx-auto px-4 py-8">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-4">
+          <Link href="/">
+            <Button variant="outline" size="icon">
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+          </Link>
+          <div>
+            <h2 className="text-4xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
+              Gestión de Mesas
+            </h2>
               <p className="text-gray-600 mt-2">
                 Organiza mesas y asientos para el evento
               </p>
@@ -540,7 +543,7 @@ export default function TablesPage() {
         )}
 
         {/* Modal para Agregar/Editar Mesa */}
-        <Dialog open={isTableModalOpen} onOpenChange={closeTableModal}>
+        <Dialog open={isTableModalOpen} onOpenChange={(open) => !open && handleCloseModal()}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-2xl bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
@@ -653,7 +656,7 @@ export default function TablesPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={closeTableModal}
+                  onClick={handleCloseModal}
                 >
                   Cancelar
                 </Button>
@@ -765,7 +768,6 @@ export default function TablesPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
     </div>
   );
 }

@@ -212,15 +212,21 @@ enum NotificationStatus {
 
 // Configuración global del evento
 model EventConfig {
-  id                  String    @id @default(cuid())
-  weddingDate         DateTime? // Fecha de la boda
-  rsvpDeadline        DateTime? // Fecha límite para confirmar asistencia
-  eventName           String    @default("Nuestra Boda")
-  eventLocation       String?
-  ceremonyTime        String?
-  receptionTime       String?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id                        String    @id @default(cuid())
+  weddingDate               DateTime? // Fecha de la boda
+  rsvpDeadline              DateTime? // Fecha límite para confirmar asistencia
+  eventName                 String    @default("Nuestra Boda")
+  eventLocation             String?
+  ceremonyTime              String?
+  receptionTime             String?
+  // Configuración de campos opcionales para invitados
+  enableDietaryRestrictions Boolean   @default(false) // Habilitar restricciones dietéticas
+  enableSpecialNeeds        Boolean   @default(false) // Habilitar necesidades especiales
+  // Configuración de WordPress
+  wordpressUrl              String?   // URL de la página de invitación en WordPress
+  embedEnabled              Boolean   @default(false) // Habilitar modo embed para iframe
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
   
   @@map("event_config")
 }

@@ -1,0 +1,9 @@
+@echo off
+echo Limpiando cache de Next.js...
+if exist .next rmdir /s /q .next
+
+echo Verificando dependencias...
+call npm install
+
+echo Iniciando servidor de desarrollo...
+call npm run dev

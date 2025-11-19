@@ -5,20 +5,25 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
   // Rutas públicas que no requieren autenticación
-  const publicPaths = ["/login", "/api/auth", "/rsvp"];
+  const publicPaths = ["/", "/login", "/api/auth", "/api/event-config", "/rsvp"];
   
   // Verificar si la ruta es pública
-  const isPublicPath = publicPaths.some(path => pathname.startsWith(path));
-  
-  if (isPublicPath) {
-    return NextResponse.next();
-  }
+  const isPublicPath = publicPaths.some(path => pathname === path || pathname.startsWith(path + "/"));
   
   // Verificar si hay sesión
   const session = request.cookies.get("better-auth.session_token");
   
+  // Si está en una ruta pública
+  if (isPublicPath) {
+    // Si está autenticado y en login, redirigir al dashboard
+    if (session && pathname === "/login") {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+    return NextResponse.next();
+  }
+  
+  // Rutas protegidas: redirigir al login si no hay sesión
   if (!session) {
-    // Redirigir al login si no hay sesión
     return NextResponse.redirect(new URL("/login", request.url));
   }
   

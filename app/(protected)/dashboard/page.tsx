@@ -1,28 +1,22 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, UserCheck, Baby, Table2, MapPin, MessageSquare, Loader2, TrendingUp, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { Users, UserCheck, Baby, Table2, MapPin, MessageSquare, TrendingUp, CheckCircle2, XCircle, Clock } from "lucide-react";
 import { useDashboard } from "@/lib/hooks/use-dashboard";
 import { ResponsivePie } from '@nivo/pie';
 import { ResponsiveBar } from '@nivo/bar';
+import { WeddingLoader } from "@/components/wedding-loader";
 
 export default function DashboardPage() {
   const { data: stats, isLoading, error } = useDashboard();
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50">
-        <div className="text-center">
-          <Loader2 className="h-12 w-12 text-pink-600 animate-spin mx-auto" />
-          <p className="mt-4 text-gray-600 font-medium">Cargando estadísticas...</p>
-        </div>
-      </div>
-    );
+    return <WeddingLoader message="Cargando estadísticas..." />;
   }
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50">
+      <div className="flex items-center justify-center py-20">
         <Card className="max-w-md">
           <CardContent className="pt-6">
             <div className="text-center">
@@ -71,13 +65,12 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50">
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
-            Dashboard
-          </h1>
-          <p className="text-gray-600 mt-2">
+    <div className="container mx-auto px-4 py-8">
+      <div className="mb-8">
+        <h1 className="text-4xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
+          Dashboard
+        </h1>
+        <p className="text-gray-600 mt-2">
             Vista general de tu evento · Actualización automática cada minuto
           </p>
         </div>
@@ -378,6 +371,5 @@ export default function DashboardPage() {
           </Card>
         </div>
       </div>
-    </div>
   );
 }

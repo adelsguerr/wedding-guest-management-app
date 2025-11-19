@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Heart, Loader2, Check, X, UtensilsCrossed, Baby } from "lucide-react";
 import { toast } from "sonner";
+import { useEventConfig } from "@/lib/hooks/use-event-config";
 
 interface Guest {
   id: string;
@@ -41,6 +42,7 @@ interface GuestConfirmation {
 
 export default function RSVPConfirmPage() {
   const router = useRouter();
+  const { data: eventConfig } = useEventConfig();
   const [isLoading, setIsLoading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [familyData, setFamilyData] = useState<FamilyData | null>(null);
@@ -216,12 +218,12 @@ export default function RSVPConfirmPage() {
                               </span>
                             )}
                           </div>
-                          {confirmation.dietaryRestrictions && (
+                          {eventConfig?.enableDietaryRestrictions && confirmation.dietaryRestrictions && (
                             <p className="text-sm text-green-700">
                               🥗 Restricciones: {confirmation.dietaryRestrictions}
                             </p>
                           )}
-                          {confirmation.specialNeeds && (
+                          {eventConfig?.enableSpecialNeeds && confirmation.specialNeeds && (
                             <p className="text-sm text-green-700">
                               ♿ Necesidades: {confirmation.specialNeeds}
                             </p>
@@ -334,7 +336,7 @@ export default function RSVPConfirmPage() {
                         <button
                           type="button"
                           onClick={() => toggleGuestConfirmation(guest.id)}
-                          className={`mt-1 flex-shrink-0 w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${
+                          className={`flex-shrink-0 w-6 h-6 rounded border-2 flex items-center justify-center transition-colors mt-0.5 ${
                             confirmation.confirmed
                               ? "bg-green-500 border-green-500"
                               : "border-gray-300 hover:border-pink-500"
@@ -342,8 +344,12 @@ export default function RSVPConfirmPage() {
                         >
                           {confirmation.confirmed && <Check className="w-4 h-4 text-white" />}
                         </button>
-                        <div className="flex-1 space-y-3">
-                          <div className="flex items-center gap-2">
+                        <div className="flex-1">
+                          <div className={`flex items-center gap-2 ${
+                            confirmation.confirmed && (eventConfig?.enableDietaryRestrictions || eventConfig?.enableSpecialNeeds) 
+                              ? 'mb-3' 
+                              : ''
+                          }`}>
                             <p className="font-medium">
                               {guest.firstName} {guest.lastName}
                             </p>
@@ -361,31 +367,38 @@ export default function RSVPConfirmPage() {
                           </div>
 
                           {confirmation.confirmed && (
-                            <div className="space-y-3 pt-2">
-                              <div>
-                                <Label htmlFor={`dietary-${guest.id}`} className="text-xs">
-                                  Restricciones dietéticas
-                                </Label>
-                                <Input
-                                  id={`dietary-${guest.id}`}
-                                  placeholder="Ej: Vegetariano, sin gluten, etc."
-                                  value={confirmation.dietaryRestrictions}
-                                  onChange={(e) => updateGuestField(guest.id, "dietaryRestrictions", e.target.value)}
-                                  className="mt-1"
-                                />
-                              </div>
-                              <div>
-                                <Label htmlFor={`special-${guest.id}`} className="text-xs">
-                                  Necesidades especiales
-                                </Label>
-                                <Input
-                                  id={`special-${guest.id}`}
-                                  placeholder="Ej: Silla de ruedas, alta silla, etc."
-                                  value={confirmation.specialNeeds}
-                                  onChange={(e) => updateGuestField(guest.id, "specialNeeds", e.target.value)}
-                                  className="mt-1"
-                                />
-                              </div>
+                            <div className="space-y-3">
+                              {/* Restricciones Dietéticas - Condicional */}
+                              {eventConfig?.enableDietaryRestrictions && (
+                                <div>
+                                  <Label htmlFor={`dietary-${guest.id}`} className="text-xs">
+                                    Restricciones dietéticas
+                                  </Label>
+                                  <Input
+                                    id={`dietary-${guest.id}`}
+                                    placeholder="Ej: Vegetariano, sin gluten, etc."
+                                    value={confirmation.dietaryRestrictions}
+                                    onChange={(e) => updateGuestField(guest.id, "dietaryRestrictions", e.target.value)}
+                                    className="mt-1"
+                                  />
+                                </div>
+                              )}
+                              
+                              {/* Necesidades Especiales - Condicional */}
+                              {eventConfig?.enableSpecialNeeds && (
+                                <div>
+                                  <Label htmlFor={`special-${guest.id}`} className="text-xs">
+                                    Necesidades especiales
+                                  </Label>
+                                  <Input
+                                    id={`special-${guest.id}`}
+                                    placeholder="Ej: Silla de ruedas, alta silla, etc."
+                                    value={confirmation.specialNeeds}
+                                    onChange={(e) => updateGuestField(guest.id, "specialNeeds", e.target.value)}
+                                    className="mt-1"
+                                  />
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>

@@ -22,7 +22,9 @@ export default function RootLayout({
     <html lang="es">
       <body className={inter.className}>
         <Providers>
-          {children}
+          <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50">
+            {children}
+          </div>
           <Toaster 
             position="top-center" 
             richColors 

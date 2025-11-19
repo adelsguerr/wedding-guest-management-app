@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { generateInviteCode } from '@/lib/utils';
 
 // GET - Obtener todas las familias
 export async function GET() {
@@ -60,6 +61,22 @@ export async function POST(request: Request) {
       );
     }
 
+    // Generar código único de invitación
+    let inviteCode = generateInviteCode();
+    
+    // Asegurar que el código sea único
+    let existingFamily = await prisma.familyHead.findUnique({
+      where: { inviteCode },
+    });
+    
+    // Si existe, generar uno nuevo hasta que sea único
+    while (existingFamily) {
+      inviteCode = generateInviteCode();
+      existingFamily = await prisma.familyHead.findUnique({
+        where: { inviteCode },
+      });
+    }
+
     // Crear la familia Y automáticamente crear un Guest para el representante de familia
     // El representante de familia cuenta como 1 invitado dentro del límite
     const family = await prisma.familyHead.create({
@@ -69,6 +86,7 @@ export async function POST(request: Request) {
         phone,
         email: email && email.trim() !== '' ? email : null, // Convertir string vacío a null
         allowedGuests: allowedGuests || 1,
+        inviteCode, // Asignar código único generado
         guests: {
           create: {
             firstName,

@@ -8,12 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Users, Plus, Phone, Mail, UserCheck, Trash2, Pencil, Loader2, X, QrCode } from "lucide-react";
+import { Users, Plus, Phone, Mail, UserCheck, Trash2, Pencil, X, QrCode, Loader2 } from "lucide-react";
 import { useFamilies, useCreateFamily, useUpdateFamily, useDeleteFamily, type FamilyHead } from "@/lib/hooks/use-families";
 import { QRCodeDialog } from "@/components/QRCodeDialog";
 import { useModalStore } from "@/lib/stores/modal-store";
 import { useFilterStore } from "@/lib/stores/filter-store";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { WeddingLoader } from "@/components/wedding-loader";
 
 export default function FamiliesPage() {
   // React Query Hooks
@@ -70,25 +71,6 @@ export default function FamiliesPage() {
           confirmationStatus: family.confirmationStatus,
         });
       }
-    } else if (!isFamilyModalOpen) {
-      // Reset cuando se cierra el modal
-      setFormData({
-        firstName: "",
-        lastName: "",
-        phone: "",
-        email: "",
-        allowedGuests: 1,
-      });
-      setEditFormData({
-        firstName: "",
-        lastName: "",
-        phone: "",
-        email: "",
-        allowedGuests: 1,
-        confirmationStatus: "PENDING",
-      });
-      setTouched({ firstName: false, lastName: false, phone: false });
-      setErrors({ firstName: "", lastName: "", phone: "" });
     }
   }, [isFamilyModalOpen, familyModalMode, selectedFamilyId, families]);
 
@@ -161,10 +143,37 @@ export default function FamiliesPage() {
       
       showToast('success', 'Familia creada', `${formData.firstName} ${formData.lastName} ha sido agregado exitosamente`);
 
+      // Reset form and close
+      resetForms();
       closeFamilyModal();
     } catch (error) {
       showToast('error', 'Error', 'No se pudo crear la familia');
     }
+  };
+
+  const resetForms = () => {
+    setFormData({
+      firstName: "",
+      lastName: "",
+      phone: "",
+      email: "",
+      allowedGuests: 1,
+    });
+    setEditFormData({
+      firstName: "",
+      lastName: "",
+      phone: "",
+      email: "",
+      allowedGuests: 1,
+      confirmationStatus: "PENDING",
+    });
+    setTouched({ firstName: false, lastName: false, phone: false });
+    setErrors({ firstName: "", lastName: "", phone: "" });
+  };
+
+  const handleCloseModal = () => {
+    resetForms();
+    closeFamilyModal();
   };
 
   const handleOpenEdit = (family: FamilyHead) => {
@@ -183,6 +192,8 @@ export default function FamiliesPage() {
 
       showToast('success', 'Familia actualizada', `${editFormData.firstName} ${editFormData.lastName} ha sido actualizado`);
 
+      // Reset form and close
+      resetForms();
       closeFamilyModal();
     } catch (error) {
       showToast('error', 'Error', 'No se pudo actualizar la familia');
@@ -219,43 +230,13 @@ export default function FamiliesPage() {
 
   // Loading State
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-pink-600" />
-      </div>
-    );
+    return <WeddingLoader message="Cargando familias..." />;
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50">
-      {/* Header */}
-      <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-2">
-              <span className="text-3xl">💒</span>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
-                Wedding Manager
-              </h1>
-            </Link>
-            <nav className="flex gap-4">
-              <Link href="/dashboard">
-                <Button variant="outline">Dashboard</Button>
-              </Link>
-              <Link href="/guests">
-                <Button variant="outline">Invitados</Button>
-              </Link>
-              <Link href="/tables">
-                <Button variant="outline">Mesas</Button>
-              </Link>
-            </nav>
-          </div>
-        </div>
-      </header>
-
-      <div className="container mx-auto px-4 py-8">
-        {/* Page Header */}
-        <div className="flex items-center justify-between mb-8">
+    <div className="container mx-auto px-4 py-8">
+      {/* Page Header */}
+      <div className="flex items-center justify-between mb-8">
           <div>
             <h2 className="text-4xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
               Gestión de Familias
@@ -271,7 +252,7 @@ export default function FamiliesPage() {
         </div>
 
         {/* Create Form Modal */}
-        <Dialog open={isFamilyModalOpen && familyModalMode === 'create'} onOpenChange={closeFamilyModal}>
+        <Dialog open={isFamilyModalOpen && familyModalMode === 'create'} onOpenChange={handleCloseModal}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-2xl bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
@@ -426,7 +407,7 @@ export default function FamiliesPage() {
               </div>
               
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={closeFamilyModal}>
+                <Button type="button" variant="outline" onClick={handleCloseModal}>
                   Cancelar
                 </Button>
                 <Button 
@@ -591,7 +572,7 @@ export default function FamiliesPage() {
         </div>
 
         {/* Edit Modal */}
-        <Dialog open={isFamilyModalOpen && familyModalMode === 'edit'} onOpenChange={closeFamilyModal}>
+        <Dialog open={isFamilyModalOpen && familyModalMode === 'edit'} onOpenChange={handleCloseModal}>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>Editar Familia</DialogTitle>
@@ -681,7 +662,7 @@ export default function FamiliesPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={closeFamilyModal}
+                  onClick={handleCloseModal}
                 >
                   Cancelar
                 </Button>
@@ -713,7 +694,6 @@ export default function FamiliesPage() {
             familyName={selectedQRFamily.name}
           />
         )}
-      </div>
     </div>
   );
 }

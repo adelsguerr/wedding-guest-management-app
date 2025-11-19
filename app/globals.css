@@ -67,3 +67,16 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Animación de progreso para el preloader */
+@keyframes progress {
+  0% {
+    stroke-dashoffset: 283;
+  }
+  50% {
+    stroke-dashoffset: 70;
+  }
+  100% {
+    stroke-dashoffset: 283;
+  }
+}

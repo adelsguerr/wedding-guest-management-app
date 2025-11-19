@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Heart, Loader2, Eye, EyeOff } from "lucide-react";
+import { Heart, Loader2, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
+import Link from "next/link";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -185,7 +186,26 @@ export default function LoginPage() {
 
       // Better Auth devuelve { data, error }
       if (result?.error) {
-        toast.error(result.error.message || "Credenciales inválidas");
+        // Traducir mensajes de error al español
+        const errorMsg = result.error.message || "";
+        let translatedError = "Credenciales inválidas";
+        
+        if (errorMsg.toLowerCase().includes("invalid") || 
+            errorMsg.toLowerCase().includes("password") ||
+            errorMsg.toLowerCase().includes("email")) {
+          translatedError = "Email o contraseña incorrectos";
+        } else if (errorMsg.toLowerCase().includes("not found")) {
+          translatedError = "Usuario no encontrado";
+        } else if (errorMsg.toLowerCase().includes("disabled") || 
+                   errorMsg.toLowerCase().includes("blocked")) {
+          translatedError = "Cuenta deshabilitada. Contacta al administrador";
+        }
+
+        toast.error(translatedError);
+        setLoginErrors(prev => ({
+          ...prev,
+          password: translatedError
+        }));
       } else if (result?.data?.user) {
         toast.success("Sesión iniciada correctamente");
         router.push("/dashboard");
@@ -195,7 +215,23 @@ export default function LoginPage() {
       }
     } catch (error: any) {
       console.error("Login error:", error);
-      toast.error(error?.message || "No se pudo conectar con el servidor");
+      
+      // Manejo específico de errores
+      const errorMsg = error?.message || "";
+      
+      if (error?.name === "TypeError" && errorMsg === "Failed to fetch") {
+        toast.error("No se pudo conectar con el servidor. Verifica tu conexión.");
+      } else if (errorMsg.toLowerCase().includes("invalid") || 
+                 errorMsg.toLowerCase().includes("password") ||
+                 errorMsg.toLowerCase().includes("email")) {
+        toast.error("Email o contraseña incorrectos");
+        setLoginErrors(prev => ({
+          ...prev,
+          password: "Credenciales inválidas"
+        }));
+      } else {
+        toast.error("Error al iniciar sesión. Intenta nuevamente.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -241,7 +277,21 @@ export default function LoginPage() {
 
       // Better Auth devuelve { data, error }
       if (result?.error) {
-        toast.error(result.error.message || "No se pudo crear la cuenta");
+        // Traducir mensajes de error al español
+        const errorMsg = result.error.message || "";
+        let translatedError = "No se pudo crear la cuenta";
+        
+        if (errorMsg.toLowerCase().includes("already exists") || 
+            errorMsg.toLowerCase().includes("already registered")) {
+          translatedError = "Este email ya está registrado";
+        } else if (errorMsg.toLowerCase().includes("invalid email")) {
+          translatedError = "Email inválido";
+        } else if (errorMsg.toLowerCase().includes("weak password") ||
+                   errorMsg.toLowerCase().includes("password too short")) {
+          translatedError = "La contraseña es muy débil. Usa al menos 8 caracteres";
+        }
+        
+        toast.error(translatedError);
       } else if (result?.data?.user) {
         toast.success("Cuenta creada exitosamente");
         router.push("/dashboard");
@@ -251,7 +301,18 @@ export default function LoginPage() {
       }
     } catch (error: any) {
       console.error("Register error:", error);
-      toast.error(error?.message || "No se pudo conectar con el servidor");
+      
+      // Traducir errores comunes
+      const errorMsg = error?.message || "";
+      let translatedError = "No se pudo conectar con el servidor";
+      
+      if (errorMsg.toLowerCase().includes("already exists")) {
+        translatedError = "Este email ya está registrado";
+      } else if (errorMsg === "Failed to fetch") {
+        translatedError = "No se pudo conectar con el servidor. Verifica tu conexión.";
+      }
+      
+      toast.error(translatedError);
     } finally {
       setIsLoading(false);
     }
@@ -261,6 +322,13 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
+          <Link 
+            href="/" 
+            className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-pink-600 transition-colors mb-4 w-fit"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Volver al inicio
+          </Link>
           <div className="flex justify-center mb-4">
             <div className="w-16 h-16 bg-gradient-to-br from-pink-500 to-purple-600 rounded-full flex items-center justify-center">
               <Heart className="w-8 h-8 text-white fill-white" />

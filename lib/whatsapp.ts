@@ -53,19 +53,19 @@ Pronto te enviaremos más detalles.
 [Nombres de novios]
   `.trim(),
 
-  rsvpRequest: (familyName: string, allowedGuests: number, confirmationUrl: string) => `
-¡Hola ${familyName}! 💒
+  rsvpRequest: (familyName: string, allowedGuests: number, inviteCode: string, wordpressUrl?: string) => `
+¡Hola ${familyName}! 💒✨
 
 Es momento de confirmar tu asistencia a nuestra boda.
 
-👥 Tu familia tiene ${allowedGuests} invitación(es).
+👥 Tu familia tiene ${allowedGuests} ${allowedGuests === 1 ? 'invitación' : 'invitaciones'}.
 
 Por favor confirma aquí:
-${confirmationUrl}
+${wordpressUrl || `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/rsvp`}?code=${inviteCode}
 
-Fecha límite: [Fecha]
+¡Esperamos contar contigo! 💕
 
-¡Esperamos contar contigo!
+Rebeca & Adelso
   `.trim(),
 
   reminder1Month: (familyName: string, weddingDate: string) => `

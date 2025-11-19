@@ -25,7 +25,7 @@ export function UserMenu() {
       toast.success("Sesión cerrada", {
         description: "Has cerrado sesión correctamente",
       });
-      router.push("/login");
+      router.push("/");
       router.refresh();
     } catch (error) {
       toast.error("Error", {

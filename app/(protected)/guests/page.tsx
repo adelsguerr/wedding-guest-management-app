@@ -22,15 +22,18 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { Users, Plus, Baby, User, Trash2, Search, Filter, Pencil, Loader2, X } from "lucide-react";
+import { Users, Plus, Baby, User, Trash2, Search, Filter, Pencil, X, Loader2 } from "lucide-react";
 import { useGuests, useCreateGuest, useUpdateGuest, useDeleteGuest, type Guest } from "@/lib/hooks/use-guests";
 import { useFamilies } from "@/lib/hooks/use-families";
 import { useModalStore, useFilterStore, useUIStore } from "@/lib/stores";
+import { WeddingLoader } from "@/components/wedding-loader";
+import { useEventConfig } from "@/lib/hooks/use-event-config";
 
 export default function GuestsPage() {
   // React Query Hooks
   const { data: guests = [], isLoading: loadingGuests } = useGuests();
   const { data: families = [], isLoading: loadingFamilies } = useFamilies();
+  const { data: eventConfig } = useEventConfig();
   const createGuest = useCreateGuest();
   const updateGuest = useUpdateGuest();
   const deleteGuest = useDeleteGuest();
@@ -91,18 +94,6 @@ export default function GuestsPage() {
           specialNeeds: guest.specialNeeds || "",
         });
       }
-    } else if (!isGuestModalOpen) {
-      // Reset cuando se cierra el modal
-      setFormData({
-        firstName: "",
-        lastName: "",
-        guestType: "ADULT",
-        familyHeadId: "",
-        dietaryRestrictions: "",
-        specialNeeds: "",
-      });
-      setTouched({ firstName: false, lastName: false, familyHeadId: false });
-      setErrors({ firstName: "", lastName: "", familyHeadId: "" });
     }
   }, [isGuestModalOpen, guestModalMode, selectedGuestId, guests]);
 
@@ -118,6 +109,11 @@ export default function GuestsPage() {
     });
     setTouched({ firstName: false, lastName: false, familyHeadId: false });
     setErrors({ firstName: "", lastName: "", familyHeadId: "" });
+  };
+
+  const handleCloseModal = () => {
+    resetForm();
+    closeGuestModal();
   };
 
   // Validation Logic
@@ -188,6 +184,7 @@ export default function GuestsPage() {
         showToast('success', 'Invitado creado', `${formData.firstName} ${formData.lastName} ha sido agregado exitosamente`);
       }
 
+      resetForm();
       closeGuestModal();
     } catch (error) {
       showToast(
@@ -250,43 +247,13 @@ export default function GuestsPage() {
 
   // Loading State
   if (loadingGuests || loadingFamilies) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-pink-600" />
-      </div>
-    );
+    return <WeddingLoader message="Cargando invitados..." />;
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50">
-      {/* Header */}
-      <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-2">
-              <span className="text-3xl">💒</span>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
-                Wedding Manager
-              </h1>
-            </Link>
-            <nav className="flex gap-4">
-              <Link href="/dashboard">
-                <Button variant="outline">Dashboard</Button>
-              </Link>
-              <Link href="/families">
-                <Button variant="outline">Familias</Button>
-              </Link>
-              <Link href="/tables">
-                <Button variant="outline">Mesas</Button>
-              </Link>
-            </nav>
-          </div>
-        </div>
-      </header>
-
-      <div className="container mx-auto px-4 py-8">
-        {/* Page Header */}
-        <div className="flex items-center justify-between mb-8">
+    <div className="container mx-auto px-4 py-8">
+      {/* Page Header */}
+      <div className="flex items-center justify-between mb-8">
           <div>
             <h2 className="text-4xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
               Gestión de Invitados
@@ -371,6 +338,18 @@ export default function GuestsPage() {
                   </button>
                 )}
               </div>
+              <Button
+                variant="ghost"
+                onClick={clearGuestFilters}
+                className={`text-gray-500 transition-opacity ${
+                  guestSearchQuery || guestTypeFilter !== 'ALL' 
+                    ? 'opacity-100' 
+                    : 'opacity-0 pointer-events-none'
+                }`}
+              >
+                <X className="w-4 h-4 mr-2" />
+                Limpiar filtros
+              </Button>
               <div className="flex gap-2">
                 <Button
                   variant={guestTypeFilter === "ALL" ? "default" : "outline"}
@@ -393,15 +372,6 @@ export default function GuestsPage() {
                   <Baby className="w-4 h-4 mr-2" />
                   Niños ({stats.children})
                 </Button>
-                {(guestSearchQuery || guestTypeFilter !== 'ALL') && (
-                  <Button
-                    variant="ghost"
-                    onClick={clearGuestFilters}
-                    className="text-gray-500"
-                  >
-                    Limpiar filtros
-                  </Button>
-                )}
               </div>
             </div>
           </CardContent>
@@ -456,13 +426,13 @@ export default function GuestsPage() {
                   ) : (
                     <div className="text-amber-600">Sin asiento asignado</div>
                   )}
-                  {guest.dietaryRestrictions && (
+                  {eventConfig?.enableDietaryRestrictions && guest.dietaryRestrictions && (
                     <div>
                       <span className="text-gray-600">Dieta:</span>{" "}
                       <span className="text-xs">{guest.dietaryRestrictions}</span>
                     </div>
                   )}
-                  {guest.specialNeeds && (
+                  {eventConfig?.enableSpecialNeeds && guest.specialNeeds && (
                     <div>
                       <span className="text-gray-600">Necesidades:</span>{" "}
                       <span className="text-xs">{guest.specialNeeds}</span>
@@ -498,7 +468,7 @@ export default function GuestsPage() {
         </div>
 
         {/* Create/Edit Form Modal */}
-        <Dialog open={isGuestModalOpen} onOpenChange={(open) => !open && closeGuestModal()}>
+        <Dialog open={isGuestModalOpen} onOpenChange={(open) => !open && handleCloseModal()}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-2xl bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
@@ -656,30 +626,36 @@ export default function GuestsPage() {
                 </Select>
               </div>
 
-              <div>
-                <Label htmlFor="dietaryRestrictions">Restricciones Alimentarias (opcional)</Label>
-                <Input
-                  id="dietaryRestrictions"
-                  placeholder="Ej: Vegetariano, celíaco, alérgico a..."
-                  value={formData.dietaryRestrictions}
-                  onChange={(e) =>
-                    setFormData({ ...formData, dietaryRestrictions: e.target.value })
-                  }
-                />
-              </div>
+              {/* Restricciones Dietéticas - Condicional */}
+              {eventConfig?.enableDietaryRestrictions && (
+                <div>
+                  <Label htmlFor="dietaryRestrictions">Restricciones Alimentarias (opcional)</Label>
+                  <Input
+                    id="dietaryRestrictions"
+                    placeholder="Ej: Vegetariano, celíaco, alérgico a..."
+                    value={formData.dietaryRestrictions}
+                    onChange={(e) =>
+                      setFormData({ ...formData, dietaryRestrictions: e.target.value })
+                    }
+                  />
+                </div>
+              )}
 
-              <div>
-                <Label htmlFor="specialNeeds">Necesidades Especiales (opcional)</Label>
-                <Input
-                  id="specialNeeds"
-                  placeholder="Ej: Silla de ruedas, asiento especial..."
-                  value={formData.specialNeeds}
-                  onChange={(e) => setFormData({ ...formData, specialNeeds: e.target.value })}
-                />
-              </div>
+              {/* Necesidades Especiales - Condicional */}
+              {eventConfig?.enableSpecialNeeds && (
+                <div>
+                  <Label htmlFor="specialNeeds">Necesidades Especiales (opcional)</Label>
+                  <Input
+                    id="specialNeeds"
+                    placeholder="Ej: Silla de ruedas, asiento especial..."
+                    value={formData.specialNeeds}
+                    onChange={(e) => setFormData({ ...formData, specialNeeds: e.target.value })}
+                  />
+                </div>
+              )}
 
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => closeGuestModal()}>
+                <Button type="button" variant="outline" onClick={handleCloseModal}>
                   Cancelar
                 </Button>
                 <Button
@@ -703,7 +679,6 @@ export default function GuestsPage() {
             </form>
           </DialogContent>
         </Dialog>
-      </div>
     </div>
   );
 }
