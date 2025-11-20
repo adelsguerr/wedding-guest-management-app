@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,7 +40,7 @@ interface SearchResult {
   allowedGuests: number;
 }
 
-export default function RSVPPage() {
+function RSVPContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
@@ -335,5 +335,17 @@ export default function RSVPPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function RSVPPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-pink-600" />
+      </div>
+    }>
+      <RSVPContent />
+    </Suspense>
   );
 }

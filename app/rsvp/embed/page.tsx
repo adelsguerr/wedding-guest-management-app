@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,7 +38,7 @@ interface GuestConfirmation {
   specialNeeds: string;
 }
 
-export default function RSVPEmbedPage() {
+function RSVPEmbedContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const code = searchParams.get("code");
@@ -416,5 +416,17 @@ export default function RSVPEmbedPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function RSVPEmbedPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50">
+        <Loader2 className="h-8 w-8 animate-spin text-pink-600" />
+      </div>
+    }>
+      <RSVPEmbedContent />
+    </Suspense>
   );
 }
