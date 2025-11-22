@@ -122,8 +122,8 @@ function RSVPEmbedContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          familyId: familyData.id,
-          confirmations: Object.values(guestConfirmations),
+          familyHeadId: familyData.id,
+          guests: Object.values(guestConfirmations),
         }),
       });
 
